@@ -1,0 +1,48 @@
+// Team DB — seccion 3.1 del documento de arquitectura.
+// Tablas y columnas exactamente como estan definidas en el documento:
+//   teams(id, name, category_id)
+//   players(id, team_id, birth_date, eligibility_status, jersey_number)
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EligibilityStatus {
+  elegible
+  no_elegible
+  pendiente
+}
+
+model Team {
+  id         Int    @id @default(autoincrement())
+  name       String // restriccion: NOT NULL
+  // Referencia logica a una categoria del League Service (otra BD):
+  // sin join fisico entre servicios (documento, 3.8).
+  categoryId Int    @map("category_id")
+
+  players Player[]
+
+  // Indice: consultar equipos por categoria
+  @@index([categoryId])
+  @@map("teams")
+}
+
+model Player {
+  id                Int               @id @default(autoincrement())
+  teamId            Int               @map("team_id")
+  birthDate         DateTime          @map("birth_date") @db.Date // obligatorio
+  eligibilityStatus EligibilityStatus @map("eligibility_status") // obligatorio
+  jerseyNumber      Int               @map("jersey_number")
+
+  team Team @relation(fields: [teamId], references: [id])
+
+  // Indice: obtener la plantilla completa de un equipo
+  @@index([teamId])
+  @@map("players")
+}

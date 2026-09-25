@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SportsLeague — Panel de pruebas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0e1a14;
+    --surface: #15261d;
+    --surface-2: #102019;
+    --line: #29432f;
+    --text: #eaf2ec;
+    --muted: #93ab9b;
+    --sync: #4fb3a9;
+    --sync-bg: #133230;
+    --async: #d49a4a;
+    --async-bg: #33260f;
+    --error: #e06a5a;
+    --error-bg: #3a1a16;
+    --ok: #6cc38a;
+    --radius: 10px;
+    --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--body); }
+  h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; letter-spacing: .01em; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  :focus-visible { outline: 2px solid var(--sync); outline-offset: 2px; }
+
+  /* ---------- Cabecera + diagrama ---------- */
+  header { padding: 22px 28px 4px; max-width: 1240px; margin: 0 auto; }
+  .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 30px; }
+  header p { margin: 2px 0 0; color: var(--muted); }
+  header p.env { font-size: 13.5px; }
+  .run { display: flex; align-items: center; gap: 12px; }
+  #run-status { color: var(--muted); font-size: 14px; min-height: 1.5em; }
+
+  .diagram-wrap { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 28px 8px; }
+  .diagram { max-width: 1184px; margin: 0 auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 12px 2px; }
+  .diagram svg { width: 100%; max-height: 190px; display: block; }
+  @media (max-width: 900px), (max-height: 600px) { .diagram-wrap { position: static; padding: 10px 16px; } .step { scroll-margin-top: 16px !important; } }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 4px 6px 8px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+  .legend .l-sync::before { border-color: var(--sync); }
+  .legend .l-async::before { border-color: var(--async); border-top-style: dashed; }
+  .legend .l-dot::before { width: 10px; height: 10px; border: none; border-radius: 50%; background: var(--ok); }
+
+  .node rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; transition: stroke .3s, fill .3s; }
+  .node.lit rect { stroke: var(--text); fill: #1c3326; }
+  .node .name { font: 700 19px var(--display); fill: var(--text); }
+  .node .meta { font: 500 12.5px var(--body); fill: var(--muted); }
+  .node .dot { fill: #56675c; }
+  .node.up .dot { fill: var(--ok); }
+  .node.down .dot { fill: var(--error); }
+  .node.redis rect { fill: var(--async-bg); stroke: #6b4f25; }
+  .edge { fill: none; stroke: var(--line); stroke-width: 2; marker-end: url(#arrow-idle); transition: stroke .25s, stroke-width .25s; }
+  .edge.async { stroke-dasharray: 7 6; }
+  .edge.sync.active { stroke: var(--sync); stroke-width: 3.5; marker-end: url(#arrow-sync); }
+  .edge.async.active { stroke: var(--async); stroke-width: 3.5; marker-end: url(#arrow-async); animation: flow .6s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -26; } }
+  .edge-label { font: 500 12px var(--body); fill: var(--muted); }
+  .edge-label.active-sync { fill: var(--sync); }
+  .edge-label.active-async { fill: var(--async); }
+
+  /* ---------- Pasos ---------- */
+  main { max-width: 1240px; margin: 0 auto; padding: 18px 28px 60px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } header, main { padding-left: 16px; padding-right: 16px; } }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 20px; scroll-margin-top: 240px; }
+  .step.wide { grid-column: 1 / -1; }
+  .step-head { display: flex; align-items: baseline; gap: 12px; }
+  .step-num { font: 700 30px/1 var(--display); color: var(--sync); min-width: 22px; }
+  .step h2 { font-size: 22px; }
+  .step .svc { color: var(--muted); font-size: 13.5px; }
+  .step > .desc { color: var(--muted); font-size: 14px; margin: 6px 0 12px; max-width: 72ch; }
+
+  fieldset { border: none; padding: 0; margin: 18px 0 4px; }
+  .desc + fieldset { margin-top: 0; }
+  legend.sub { font: 600 15px var(--body); color: var(--text); margin: 0 0 2px; padding: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 10px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-top: 6px; }
+  input, select, textarea { width: 100%; margin-top: 3px; padding: 8px 9px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 7px; font: 14px var(--body); }
+  textarea { resize: vertical; min-height: 84px; }
+  .days { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
+  .days label { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 14px; }
+  .days input { width: auto; margin: 0; }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  button { font: 600 14px var(--body); padding: 9px 15px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; background: var(--sync); color: #062320; }
+  button.secondary { background: transparent; color: var(--text); border-color: var(--line); }
+  button.small { padding: 5px 10px; font-size: 13px; }
+  button.big { font-size: 15px; padding: 11px 18px; background: var(--async); color: #2a1a04; }
+  button:hover:not(:disabled) { filter: brightness(1.1); }
+  button:disabled { opacity: .5; cursor: progress; }
+
+  .result { margin-top: 12px; font-size: 14px; }
+  .result:empty { display: none; }
+  .empty { color: var(--muted); font-size: 14px; }
+  .box { border-radius: 8px; padding: 10px 12px; margin-top: 8px; border: 1px solid; }
+  .box.sync { background: var(--sync-bg); border-color: var(--sync); }
+  .box.async { background: var(--async-bg); border-color: var(--async); }
+  .box.error { background: var(--error-bg); border-color: var(--error); }
+  .box strong.tag { display: block; font-size: 13px; margin-bottom: 2px; }
+  .box.sync strong.tag { color: var(--sync); }
+  .box.async strong.tag { color: var(--async); }
+  .box.error strong.tag { color: var(--error); }
+  dl.ids { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; margin: 6px 0 0; }
+  dl.ids dt { color: var(--muted); }
+  dl.ids dd { margin: 0; }
+
+  .table-wrap { overflow-x: auto; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  tr.jornada td { color: var(--async); font-weight: 600; padding-top: 10px; }
+  .referee-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 4px 24px; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12.5px; font-weight: 600; }
+  .badge.elegible, .badge.si { background: #183a25; color: var(--ok); }
+  .badge.no_elegible { background: var(--error-bg); color: var(--error); }
+  .badge.pendiente, .badge.no { background: var(--async-bg); color: var(--async); }
+
+  /* ---------- Registro ---------- */
+  .log { grid-column: 1 / -1; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; }
+  .log-head { display: flex; justify-content: space-between; align-items: center; }
+  .log h2 { font-size: 20px; }
+  .entry { border-left: 3px solid var(--line); padding: 6px 0 6px 12px; margin-top: 10px; }
+  .entry.sync { border-color: var(--sync); }
+  .entry.async { border-color: var(--async); }
+  .entry.error { border-color: var(--error); }
+  .entry .meta { font-size: 13px; color: var(--muted); }
+  .entry .meta b { color: var(--text); font-weight: 600; }
+  .entry pre { margin: 4px 0 0; font: 12px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow: auto; color: #cfe0d4; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .edge.async.active { animation: none; }
+    * { scroll-behavior: auto !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top">
+    <div>
+      <h1>SportsLeague — Panel de pruebas</h1>
+      <p>Team, League, Fixture y Referee Service funcionando juntos.</p>
+      <p id="env" class="env"></p>
+    </div>
+    <div class="run">
+      <span id="run-status" aria-live="polite"></span>
+      <button class="big" id="run-all" onclick="runAll()">Ejecutar flujo completo</button>
+    </div>
+  </div>
+</header>
+
+<div class="diagram-wrap">
+  <div class="diagram">
+    <svg viewBox="0 8 1000 214" role="img" aria-label="Diagrama de comunicación entre los cuatro microservicios">
+      <defs>
+        <marker id="arrow-idle" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#29432f"/></marker>
+        <marker id="arrow-sync" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4fb3a9"/></marker>
+        <marker id="arrow-async" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d49a4a"/></marker>
+      </defs>
+
+      <!-- Aristas: la flecha apunta al servicio consultado -->
+      <path id="e-fl" class="edge sync" d="M360,100 C300,100 282,55 226,55" />
+      <path id="e-ft" class="edge sync" d="M360,132 C300,132 282,175 226,175" />
+      <path id="e-tl" class="edge sync" d="M120,140 L120,96" />
+      <path id="e-fr" class="edge async" d="M560,115 L600,115" />
+      <path id="e-rr" class="edge async" d="M746,115 L786,115" />
+      <text id="l-fl" class="edge-label" x="238" y="98">reglamento</text>
+      <text id="l-ft" class="edge-label" x="252" y="142">equipos</text>
+      <text id="l-tl" class="edge-label" x="130" y="123">age_range</text>
+      <text id="l-fr" class="edge-label" x="566" y="86">fixture.published</text>
+
+      <g class="node" id="n-league" transform="translate(20,20)">
+        <rect width="200" height="70" rx="9"/>
+        <circle class="dot" cx="184" cy="49" r="6"/>
+        <text class="name" x="14" y="31">League Service</text>
+        <text class="meta" x="14" y="53">puerto 3003, league_db</text>
+      </g>
+      <g class="node" id="n-team" transform="translate(20,140)">
+        <rect width="200" height="70" rx="9"/>
+        <circle class="dot" cx="184" cy="49" r="6"/>
+        <text class="name" x="14" y="31">Team Service</text>
+        <text class="meta" x="14" y="53">puerto 3004, team_db</text>
+      </g>
+      <g class="node" id="n-fixture" transform="translate(360,80)">
+        <rect width="200" height="70" rx="9"/>
+        <circle class="dot" cx="184" cy="49" r="6"/>
+        <text class="name" x="14" y="31">Fixture Service</text>
+        <text class="meta" x="14" y="53">puerto 3001, fixture_db</text>
+      </g>
+      <g class="node redis" id="n-redis" transform="translate(604,95)">
+        <rect width="142" height="40" rx="9"/>
+        <text class="name" x="71" y="26" text-anchor="middle" style="font-size:14px">Redis Pub/Sub</text>
+      </g>
+      <g class="node" id="n-referee" transform="translate(790,80)">
+        <rect width="200" height="70" rx="9"/>
+        <circle class="dot" cx="184" cy="49" r="6"/>
+        <text class="name" x="14" y="31">Referee Service</text>
+        <text class="meta" x="14" y="53">puerto 3002, referee_db</text>
+      </g>
+    </svg>
+    <div class="legend">
+      <span class="l-sync">Llamada síncrona (REST) entre servicios</span>
+      <span class="l-async">Evento asíncrono (Redis Pub/Sub)</span>
+      <span class="l-dot">Servicio activo (rojo si no responde)</span>
+    </div>
+  </div>
+</div>
+
+<main>
+
+  <!-- ===================== 1. LEAGUE ===================== -->
+  <section class="step" id="step-league">
+    <div class="step-head"><span class="step-num">1</span><div><h2>Liga, temporada y categoría</h2><span class="svc">League Service</span></div></div>
+    <p class="desc">Crea la estructura de la competición y el reglamento. El rango de edad de la categoría es el que usa el Team Service para validar a los jugadores.</p>
+    <fieldset><legend class="sub">Liga</legend><div class="grid">
+      <div><label for="lg-name">Nombre</label><input id="lg-name" value="Liga Municipal de Monteria" /></div>
+      <div><label for="lg-sport">Deporte</label><select id="lg-sport"><option>futbol</option><option>basquet</option><option>voley</option></select></div>
+    </div></fieldset>
+    <fieldset><legend class="sub">Temporada</legend><div class="grid">
+      <div><label for="ss-year">Año</label><input id="ss-year" type="number" value="2026" /></div>
+      <div><label for="ss-start">Inicio</label><input id="ss-start" type="date" value="2026-10-01" /></div>
+      <div><label for="ss-end">Fin</label><input id="ss-end" type="date" value="2027-02-28" /></div>
+    </div></fieldset>
+    <fieldset><legend class="sub">Categoría y reglamento</legend><div class="grid">
+      <div><label for="ct-name">Categoría</label><input id="ct-name" value="Sub-17" /></div>
+      <div><label for="ct-range">Rango de edad</label><input id="ct-range" value="15-17" /><div class="hint">Formato min-max</div></div>
+      <div><label for="rl-win">Puntos por victoria</label><input id="rl-win" type="number" value="3" /></div>
+      <div><label for="rl-draw">Puntos por empate</label><input id="rl-draw" type="number" value="1" /></div>
+      <div><label for="rl-tie">Criterio de desempate</label><input id="rl-tie" value="diferencia_de_goles" /></div>
+    </div></fieldset>
+    <div class="actions"><button onclick="guard(this, createLeagueSetup)">Crear liga, temporada, categoría y reglamento</button></div>
+    <div class="result" id="res-league"></div>
+  </section>
+
+  <!-- ===================== 2. TEAM ===================== -->
+  <section class="step" id="step-team">
+    <div class="step-head"><span class="step-num">2</span><div><h2>Equipos y jugadores</h2><span class="svc">Team Service</span></div></div>
+    <p class="desc">Al fichar un jugador, el Team Service le pide al League Service el rango de edad de la categoría y calcula si es elegible.</p>
+    <fieldset><legend class="sub">Equipos</legend><div class="grid">
+      <div style="grid-column:1/-1"><label for="tm-names">Un equipo por línea</label><textarea id="tm-names">Halcones FC
+Tigres United
+Leones del Sur
+Aguilas Doradas</textarea></div>
+      <div><label for="tm-cat">Id de categoría</label><input id="tm-cat" type="number" /></div>
+    </div></fieldset>
+    <div class="actions"><button onclick="guard(this, createTeams)">Registrar equipos</button></div>
+    <fieldset><legend class="sub">Fichar jugador</legend><div class="grid">
+      <div><label for="pl-team">Equipo</label><select id="pl-team"><option value="">Registra equipos primero</option></select></div>
+      <div><label for="pl-birth">Fecha de nacimiento</label><input id="pl-birth" type="date" value="2010-05-14" /></div>
+      <div><label for="pl-jersey">Camiseta</label><input id="pl-jersey" type="number" value="10" /></div>
+    </div></fieldset>
+    <div class="actions">
+      <button onclick="guard(this, addPlayer)">Fichar jugador</button>
+      <button class="secondary" onclick="guard(this, loadPlayers)">Ver plantilla</button>
+    </div>
+    <div class="result" id="res-team"></div>
+  </section>
+
+  <!-- ===================== 3. REFEREE ===================== -->
+  <section class="step" id="step-referee">
+    <div class="step-head"><span class="step-num">3</span><div><h2>Árbitros</h2><span class="svc">Referee Service</span></div></div>
+    <p class="desc">Registra árbitros con su zona, las categorías en que están certificados y los días que declaran estar disponibles.</p>
+    <div class="grid">
+      <div><label for="rf-zone">Zona</label><input id="rf-zone" value="monteria-norte" /></div>
+      <div><label for="rf-cats">Ids de categorías certificadas</label><input id="rf-cats" placeholder="ej: 1" /><div class="hint">Separados por coma</div></div>
+    </div>
+    <label>Días disponibles</label>
+    <div class="days" id="rf-days"></div>
+    <div class="actions"><button onclick="guard(this, () => createReferee())">Registrar árbitro</button></div>
+    <fieldset><legend class="sub">Cambiar disponibilidad</legend><div class="grid">
+      <div><label for="rf-select">Árbitro</label><select id="rf-select"><option value="">Registra árbitros primero</option></select></div>
+    </div></fieldset>
+    <div class="actions"><button class="secondary" onclick="guard(this, updateAvailability)">Aplicar los días marcados a este árbitro</button></div>
+    <div class="result" id="res-referee"></div>
+  </section>
+
+  <!-- ===================== 4. FIXTURE ===================== -->
+  <section class="step" id="step-fixture">
+    <div class="step-head"><span class="step-num">4</span><div><h2>Generar calendario</h2><span class="svc">Fixture Service</span></div></div>
+    <p class="desc">Consulta el reglamento al League Service y valida los equipos en el Team Service. Luego genera los partidos y publica <code>fixture.published</code> por cada jornada.</p>
+    <div class="grid">
+      <div><label for="fx-season">Id de temporada</label><input id="fx-season" type="number" /></div>
+      <div><label for="fx-cat">Id de categoría</label><input id="fx-cat" type="number" /></div>
+      <div><label for="fx-zone">Zona</label><input id="fx-zone" value="monteria-norte" /></div>
+      <div><label for="fx-teams">Ids de equipos</label><input id="fx-teams" placeholder="ej: 1,2,3,4" /></div>
+      <div><label for="fx-start">Primera jornada</label><input id="fx-start" type="date" value="2026-10-03" oninput="showWeekday()" /><div class="hint" id="fx-weekday"></div></div>
+      <div style="grid-column:1/-1"><label for="fx-venues">Canchas disponibles (separadas por coma)</label><input id="fx-venues" value="Cancha Municipal 1, Cancha Municipal 2" /></div>
+    </div>
+    <div class="actions">
+      <button onclick="guard(this, generateFixture)">Generar calendario</button>
+      <button class="secondary" onclick="guard(this, loadFixture)">Ver calendario guardado</button>
+    </div>
+    <div class="result" id="res-fixture"></div>
+    <fieldset><legend class="sub">Cambiar sede de un partido</legend><div class="grid">
+      <div><label for="vn-match">Id del partido</label><input id="vn-match" type="number" value="1" /></div>
+      <div><label for="vn-venue">Nueva sede</label><input id="vn-venue" value="Estadio 18 de Junio" /></div>
+    </div></fieldset>
+    <div class="actions"><button class="secondary" onclick="guard(this, changeVenue)">Cambiar sede</button></div>
+    <div class="result" id="res-venue"></div>
+  </section>
+
+  <!-- ===================== 5. ASIGNACIONES ===================== -->
+  <section class="step wide" id="step-assign">
+    <div class="step-head"><span class="step-num">5</span><div><h2>Asignaciones automáticas</h2><span class="svc">Referee Service</span></div></div>
+    <p class="desc">Nadie llamó a un endpoint de asignación: el Referee Service creó estas asignaciones al recibir el evento <code>fixture.published</code>. El árbitro las confirma desde aquí.</p>
+    <div class="actions"><button onclick="guard(this, loadAllAssignments)">Ver asignaciones de los árbitros registrados</button></div>
+    <div class="result" id="res-assign"></div>
+  </section>
+
+  <!-- ===================== REGISTRO ===================== -->
+  <section class="log">
+    <div class="log-head"><h2>Registro de llamadas</h2><button class="secondary small" onclick="clearLog()">Limpiar</button></div>
+    <div id="log"><p class="empty">Aquí aparece cada petición con su respuesta en JSON.</p></div>
+  </section>
+</main>
+
+<script>
+// Local (docker compose): localhost. Publicado en Vercel: /api/config entrega las URLs de Render.
+let URLS = {
+  fixture: 'http://localhost:3001/api/v1',
+  referee: 'http://localhost:3002/api/v1',
+  league:  'http://localhost:3003/api/v1',
+  team:    'http://localhost:3004/api/v1',
+};
+let ENV_LABEL = 'local (docker compose)';
+async function loadConfig() {
+  if (location.protocol === 'file:') return;
+  try {
+    const r = await fetch('/api/config');
+    if (!r.ok) return;
+    const c = await r.json();
+    if (c.fixture && c.referee && c.league && c.team) {
+      URLS = { fixture: c.fixture + '/api/v1', referee: c.referee + '/api/v1', league: c.league + '/api/v1', team: c.team + '/api/v1' };
+      ENV_LABEL = c.label || 'Render';
+    }
+  } catch { /* sin /api/config: se queda en local */ }
+}
+const NAMES = { fixture: 'Fixture Service', referee: 'Referee Service', league: 'League Service', team: 'Team Service' };
+const DAYS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const DAY_LABELS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const state = { leagueId: null, seasonId: null, categoryId: null, teams: [], referees: [], matches: [] };
+const $ = (id) => document.getElementById(id);
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function esc(v) { return String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const teamName = (id) => (state.teams.find((t) => t.id === id) || {}).name || `Equipo ${id}`;
+const utcDate = (iso) => new Date(iso).toISOString().slice(0, 10);
+const utcDay = (iso) => DAY_LABELS[new Date(iso).getUTCDay()];
+
+/* ---------- Registro de llamadas ---------- */
+function log(title, kind, payload) {
+  const box = $('log');
+  if (box.querySelector('.empty')) box.innerHTML = '';
+  const el = document.createElement('div');
+  el.className = 'entry ' + kind;
+  el.innerHTML = `<div class="meta"><b>${esc(title)}</b> a las ${new Date().toLocaleTimeString()}</div><pre>${esc(JSON.stringify(payload, null, 2))}</pre>`;
+  box.prepend(el);
+}
+function clearLog() { $('log').innerHTML = '<p class="empty">Aquí aparece cada petición con su respuesta en JSON.</p>'; }
+
+/* ---------- Llamadas HTTP ---------- */
+async function api(service, method, path, body, kind = 'sync') {
+  const title = `${method} ${path} (${NAMES[service]})`;
+  let res;
+  try {
+    res = await fetch(URLS[service] + path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    log(title, 'error', { error: 'Sin conexión', ayuda: 'Revisa que docker compose up esté corriendo' });
+    throw new Error(`No hay conexión con ${NAMES[service]}. Revisa que docker compose up esté corriendo.`);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    log(`${title} respondió ${res.status}`, 'error', data);
+    const msg = Array.isArray(data.message) ? data.message.join('. ') : (data.message || `Error ${res.status}`);
+    throw new Error(msg);
+  }
+  log(title, kind, data);
+  return data;
+}
+
+function show(id, html) { $(id).innerHTML = html; }
+function showError(id, err) { show(id, `<div class="box error"><strong class="tag">No se pudo completar</strong>${esc(err.message)}</div>`); }
+
+/* Deshabilita el botón mientras corre; el error ya queda mostrado en su paso */
+async function guard(btn, fn) {
+  btn.disabled = true;
+  try { await fn(); } catch (e) { /* mostrado en el paso */ } finally { btn.disabled = false; }
+}
+
+/* ---------- Diagrama ---------- */
+const EDGE_LABEL = { 'e-fl': 'l-fl', 'e-ft': 'l-ft', 'e-tl': 'l-tl', 'e-fr': 'l-fr', 'e-rr': 'l-fr' };
+const EDGE_NODES = {
+  'e-fl': ['n-fixture', 'n-league'], 'e-ft': ['n-fixture', 'n-team'], 'e-tl': ['n-team', 'n-league'],
+  'e-fr': ['n-fixture', 'n-redis'], 'e-rr': ['n-redis', 'n-referee'],
+};
+function pulse(edges, ms = 2200) {
+  for (const id of edges) {
+    const edge = $(id), label = $(EDGE_LABEL[id]);
+    const kind = edge.classList.contains('async') ? 'async' : 'sync';
+    edge.classList.add('active');
+    label.classList.add('active-' + kind);
+    EDGE_NODES[id].forEach((n) => $(n).classList.add('lit'));
+    setTimeout(() => {
+      edge.classList.remove('active');
+      label.classList.remove('active-' + kind);
+      EDGE_NODES[id].forEach((n) => $(n).classList.remove('lit'));
+    }, ms);
+  }
+}
+
+/* ---------- Salud de los servicios ---------- */
+// En Render gratis un servicio dormido tarda cerca de un minuto en despertar;
+// estas consultas periodicas lo despiertan y lo mantienen activo mientras el panel este abierto.
+let healthRunning = false;
+async function checkHealth() {
+  if (healthRunning) return;
+  healthRunning = true;
+  await Promise.all(Object.keys(URLS).map(async (s) => {
+    const node = $('n-' + s);
+    try {
+      const r = await fetch(URLS[s] + '/health', { signal: AbortSignal.timeout(70000) });
+      const d = await r.json();
+      node.classList.toggle('up', d.status === 'ok');
+      node.classList.toggle('down', d.status !== 'ok');
+    } catch { node.classList.remove('up'); node.classList.add('down'); }
+  }));
+  healthRunning = false;
+  const down = document.querySelectorAll('.node.down').length;
+  $('env').textContent = `Conectado a: ${ENV_LABEL}` + (down ? `. ${down} servicio(s) sin responder; en Render gratis tardan cerca de un minuto en despertar.` : '');
+}
+
+/* ---------- Paso 1: League ---------- */
+async function createLeagueSetup() {
+  try {
+    const league = await api('league', 'POST', '/leagues', { name: $('lg-name').value, sport: $('lg-sport').value });
+    const season = await api('league', 'POST', `/leagues/${league.id}/seasons`, {
+      year: Number($('ss-year').value), startDate: $('ss-start').value, endDate: $('ss-end').value,
+    });
+    const category = await api('league', 'POST', `/seasons/${season.id}/categories`, { name: $('ct-name').value, ageRange: $('ct-range').value });
+    const rules = await api('league', 'PUT', `/categories/${category.id}/rules`, {
+      pointsWin: Number($('rl-win').value), pointsDraw: Number($('rl-draw').value), tiebreakerCriteria: $('rl-tie').value,
+    });
+    Object.assign(state, { leagueId: league.id, seasonId: season.id, categoryId: category.id });
+    $('tm-cat').value = category.id; $('rf-cats').value = category.id;
+    $('fx-season').value = season.id; $('fx-cat').value = category.id;
+    show('res-league', `<div class="box sync"><strong class="tag">Guardado en league_db</strong><dl class="ids">
+      <dt>Liga</dt><dd>#${league.id} ${esc(league.name)} (${esc(league.sport)})</dd>
+      <dt>Temporada</dt><dd>#${season.id} ${season.year}, del ${utcDate(season.startDate)} al ${utcDate(season.endDate)}</dd>
+      <dt>Categoría</dt><dd>#${category.id} ${esc(category.name)}, edades ${esc(category.ageRange)}</dd>
+      <dt>Reglamento</dt><dd>${rules.pointsWin} pts por victoria, ${rules.pointsDraw} por empate, desempate por ${esc(rules.tiebreakerCriteria)}</dd></dl></div>`);
+  } catch (e) { showError('res-league', e); throw e; }
+}
+
+/* ---------- Paso 2: Team ---------- */
+function refreshTeamSelects() {
+  $('pl-team').innerHTML = state.teams.map((t) => `<option value="${t.id}">#${t.id} ${esc(t.name)}</option>`).join('') || '<option value="">Registra equipos primero</option>';
+  $('fx-teams').value = state.teams.map((t) => t.id).join(',');
+}
+
+async function createTeams() {
+  try {
+    const names = $('tm-names').value.split('\n').map((s) => s.trim()).filter(Boolean);
+    const categoryId = Number($('tm-cat').value);
+    if (!categoryId) throw new Error('Indica el id de la categoría (se crea en el paso 1).');
+    const created = [];
+    for (const name of names) created.push(await api('team', 'POST', '/teams', { name, categoryId }));
+    state.teams = created; // el calendario usa los equipos de esta tanda
+    refreshTeamSelects();
+    show('res-team', `<div class="box sync"><strong class="tag">${created.length} equipo(s) guardados en team_db</strong>${created.map((t) => `#${t.id} ${esc(t.name)}`).join('<br>')}</div>`);
+  } catch (e) { showError('res-team', e); throw e; }
+}
+
+async function addPlayer() {
+  try {
+    const teamId = Number($('pl-team').value);
+    if (!teamId) throw new Error('Registra y elige un equipo.');
+    pulse(['e-tl']);
+    const p = await api('team', 'POST', `/teams/${teamId}/players`, { birthDate: $('pl-birth').value, jerseyNumber: Number($('pl-jersey').value) });
+    const text = {
+      elegible: 'Elegible: su edad está dentro del rango de la categoría.',
+      no_elegible: 'No elegible: su edad está fuera del rango de la categoría.',
+      pendiente: 'Pendiente: el League Service no respondió; se puede verificar después.',
+    }[p.eligibilityStatus];
+    show('res-team', `<div class="box sync"><strong class="tag">Síncrono: Team Service consultó el age_range al League Service</strong>
+      Jugador #${p.id} (camiseta ${p.jerseyNumber}) en ${esc(teamName(teamId))}: <span class="badge ${p.eligibilityStatus}">${p.eligibilityStatus}</span><br>${text}</div>`);
+    $('pl-jersey').value = Number($('pl-jersey').value) + 1;
+  } catch (e) { showError('res-team', e); throw e; }
+}
+
+async function loadPlayers() {
+  try {
+    const teamId = Number($('pl-team').value);
+    if (!teamId) throw new Error('Registra y elige un equipo.');
+    const players = await api('team', 'GET', `/teams/${teamId}/players`);
+    if (!players.length) { show('res-team', `<p class="empty">${esc(teamName(teamId))} todavía no tiene jugadores. Ficha uno con el botón de arriba.</p>`); return; }
+    show('res-team', `<div class="table-wrap"><table><tr><th>Jugador</th><th>Camiseta</th><th>Nacimiento</th><th>Elegibilidad</th><th></th></tr>
+      ${players.map((p) => `<tr><td>#${p.id}</td><td>${p.jerseyNumber}</td><td>${utcDate(p.birthDate)}</td>
+      <td><span class="badge ${p.eligibilityStatus}">${p.eligibilityStatus}</span></td>
+      <td><button class="secondary small" onclick="guard(this, () => verifyPlayer(${p.id}))">Verificar de nuevo</button></td></tr>`).join('')}</table></div>`);
+  } catch (e) { showError('res-team', e); throw e; }
+}
+
+async function verifyPlayer(id) {
+  try {
+    pulse(['e-tl']);
+    await api('team', 'PUT', `/players/${id}/eligibility`);
+    await loadPlayers();
+  } catch (e) { showError('res-team', e); throw e; }
+}
+
+/* ---------- Paso 3: Referee ---------- */
+function renderDays() {
+  $('rf-days').innerHTML = DAYS.map((d, i) => `<label><input type="checkbox" value="${d}" ${i === 0 || i === 6 ? 'checked' : ''}/> ${DAY_LABELS[i]}</label>`).join('');
+}
+const checkedDays = () => [...document.querySelectorAll('#rf-days input:checked')].map((c) => c.value);
+function refreshRefereeSelect() {
+  $('rf-select').innerHTML = state.referees.map((r) => `<option value="${r.id}">Árbitro #${r.id}</option>`).join('') || '<option value="">Registra árbitros primero</option>';
+}
+
+async function createReferee(daysOverride) {
+  try {
+    const categoriesCertified = $('rf-cats').value.split(',').map((s) => Number(s.trim())).filter(Boolean);
+    if (!categoriesCertified.length) throw new Error('Indica al menos un id de categoría certificada (se crea en el paso 1).');
+    const availability = daysOverride || checkedDays();
+    const r = await api('referee', 'POST', '/referees', { zone: $('rf-zone').value, categoriesCertified, availability });
+    state.referees.push(r);
+    refreshRefereeSelect();
+    show('res-referee', `<div class="box sync"><strong class="tag">Árbitro #${r.id} guardado en referee_db</strong>
+      Zona ${esc(r.zone)}, certificado en la categoría ${r.categoriesCertified.join(', ')}, disponible: ${r.availability.join(', ')}</div>`);
+  } catch (e) { showError('res-referee', e); throw e; }
+}
+
+async function updateAvailability() {
+  try {
+    const id = Number($('rf-select').value);
+    if (!id) throw new Error('Registra y elige un árbitro.');
+    const r = await api('referee', 'PUT', `/referees/${id}/availability`, { availability: checkedDays() });
+    show('res-referee', `<div class="box sync"><strong class="tag">Disponibilidad actualizada</strong>Árbitro #${r.id}: ${r.availability.join(', ')}</div>`);
+  } catch (e) { showError('res-referee', e); throw e; }
+}
+
+/* ---------- Paso 4: Fixture ---------- */
+function showWeekday() {
+  const v = $('fx-start').value;
+  $('fx-weekday').textContent = v ? `Cae ${utcDay(v)}` : '';
+}
+
+function matchesTable(matches) {
+  const dates = [...new Set(matches.map((m) => utcDate(m.scheduledAt)))].sort();
+  let html = '<div class="table-wrap"><table><tr><th>Partido</th><th>Local</th><th>Visitante</th><th>Sede</th><th>Estado</th></tr>';
+  dates.forEach((d, i) => {
+    html += `<tr class="jornada"><td colspan="5">Jornada ${i + 1}: ${d} (${utcDay(d)})</td></tr>`;
+    for (const m of matches.filter((x) => utcDate(x.scheduledAt) === d)) {
+      html += `<tr><td>#${m.id}</td><td>${esc(teamName(m.homeTeam))}</td><td>${esc(teamName(m.awayTeam))}</td><td>${esc(m.venue)}</td><td>${esc(m.status)}</td></tr>`;
+    }
+  });
+  return html + '</table></div>';
+}
+
+async function generateFixture() {
+  try {
+    const seasonId = Number($('fx-season').value);
+    if (!seasonId) throw new Error('Indica el id de la temporada (se crea en el paso 1).');
+    const body = {
+      categoryId: Number($('fx-cat').value),
+      zone: $('fx-zone').value,
+      teamIds: $('fx-teams').value.split(',').map((s) => Number(s.trim())).filter(Boolean),
+      venues: $('fx-venues').value.split(',').map((s) => s.trim()).filter(Boolean),
+      startDate: $('fx-start').value,
+    };
+    pulse(['e-fl', 'e-ft']);
+    const r = await api('fixture', 'POST', `/seasons/${seasonId}/fixtures/generate`, body);
+    pulse(['e-fr', 'e-rr'], 2800);
+    state.matches = r.matches;
+    const rl = r.reglamento;
+    show('res-fixture', `
+      <div class="box sync"><strong class="tag">Síncrono: reglamento leído del League Service</strong>
+        Categoría #${rl.categoryId}: ${rl.pointsWin} pts por victoria, ${rl.pointsDraw} por empate, desempate por ${esc(rl.tiebreakerCriteria)}</div>
+      <div class="box sync"><strong class="tag">Síncrono: equipos validados en el Team Service</strong>
+        ${r.equiposValidados.map((t) => `#${t.id} ${esc(t.name)}`).join(', ')}</div>
+      <div class="box async"><strong class="tag">Asíncrono: ${r.totalJornadas} evento(s) fixture.published enviados</strong>
+        ${r.totalMatches} partidos en ${r.totalJornadas} jornadas. El Referee Service asigna los árbitros por su cuenta (paso 5).</div>
+      ${matchesTable(r.matches)}`);
+    await sleep(1500);
+    if (state.referees.length) await loadAllAssignments();
+  } catch (e) { showError('res-fixture', e); throw e; }
+}
+
+async function loadFixture() {
+  try {
+    const seasonId = Number($('fx-season').value);
+    if (!seasonId) throw new Error('Indica el id de la temporada.');
+    const matches = await api('fixture', 'GET', `/fixtures/${seasonId}`);
+    state.matches = matches;
+    show('res-fixture', matches.length ? matchesTable(matches) : `<p class="empty">La temporada ${seasonId} todavía no tiene calendario. Genéralo con el botón de arriba.</p>`);
+  } catch (e) { showError('res-fixture', e); throw e; }
+}
+
+async function changeVenue() {
+  try {
+    const id = Number($('vn-match').value);
+    const m = await api('fixture', 'PUT', `/matches/${id}/venue`, { venue: $('vn-venue').value });
+    const local = state.matches.find((x) => x.id === m.id); if (local) local.venue = m.venue;
+    show('res-venue', `<div class="box sync"><strong class="tag">Sede cambiada</strong>Partido #${m.id}, ${esc(teamName(m.homeTeam))} contra ${esc(teamName(m.awayTeam))}, ahora se juega en ${esc(m.venue)}</div>`);
+  } catch (e) { showError('res-venue', e); throw e; }
+}
+
+/* ---------- Paso 5: Asignaciones ---------- */
+async function loadAllAssignments() {
+  try {
+    if (!state.referees.length) throw new Error('Registra árbitros en el paso 3 y genera el calendario en el paso 4.');
+    const matchText = (id) => {
+      const m = state.matches.find((x) => x.id === id);
+      return m ? `${esc(teamName(m.homeTeam))} contra ${esc(teamName(m.awayTeam))}, ${utcDate(m.scheduledAt)}` : `#${id}`;
+    };
+    let html = '';
+    for (const r of state.referees) {
+      const list = await api('referee', 'GET', `/referees/${r.id}/assignments`, null, 'async');
+      html += `<div><h3 style="margin-top:14px;font-size:18px">Árbitro #${r.id}</h3>`;
+      html += list.length
+        ? `<div class="table-wrap"><table><tr><th>Asignación</th><th>Partido</th><th>Estado</th></tr>
+          ${list.map((a) => `<tr><td>#${a.id}</td><td style="white-space:normal">${matchText(a.matchId)}</td><td>${a.confirmed ? '<span class="badge si">confirmada</span>' : `<button class="secondary small" onclick="guard(this, () => confirmAssignment(${a.id}))">Confirmar</button>`}</td></tr>`).join('')}</table></div>`
+        : '<p class="empty">Sin asignaciones todavía. Revisa que su zona, categoría y días coincidan con el calendario.</p>';
+      html += '</div>';
+    }
+    show('res-assign', `<div class="box async"><strong class="tag">Creadas por el evento fixture.published</strong>Ninguna se pidió de forma manual.</div><div class="referee-grid">${html}</div>`);
+  } catch (e) { showError('res-assign', e); throw e; }
+}
+
+async function confirmAssignment(id) {
+  try { await api('referee', 'PUT', `/assignments/${id}/confirm`); await loadAllAssignments(); }
+  catch (e) { showError('res-assign', e); throw e; }
+}
+
+/* ---------- Flujo completo ---------- */
+async function runAll() {
+  const btn = $('run-all'), status = $('run-status');
+  btn.disabled = true;
+  state.referees = []; // solo los arbitros de esta corrida
+  const go = async (n, text, section, fn) => {
+    status.textContent = `Paso ${n} de 5: ${text}`;
+    $(section).scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    await fn();
+    await sleep(900);
+  };
+  try {
+    await go(1, 'creando liga, temporada y categoría', 'step-league', createLeagueSetup);
+    await go(2, 'registrando equipos y fichando un jugador', 'step-team', async () => { await createTeams(); await addPlayer(); });
+    await go(3, 'registrando dos árbitros', 'step-referee', async () => { await createReferee(['sabado', 'domingo']); await createReferee(['sabado']); });
+    await go(4, 'generando el calendario', 'step-fixture', generateFixture);
+    await go(5, 'consultando las asignaciones automáticas', 'step-assign', loadAllAssignments);
+    status.textContent = 'Flujo completo terminado.';
+  } catch (e) {
+    status.textContent = 'El flujo se detuvo. El mensaje está en el paso marcado en rojo.';
+  } finally { btn.disabled = false; }
+}
+
+renderDays();
+showWeekday();
+loadConfig().then(() => { checkHealth(); setInterval(checkHealth, 8000); });
+</script>
+</body>
+</html>

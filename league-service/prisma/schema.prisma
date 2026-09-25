@@ -1,0 +1,70 @@
+// League DB — seccion 3.2 del documento de arquitectura.
+// Tablas y columnas exactamente como estan definidas en el documento:
+//   leagues(id, name, sport)
+//   seasons(league_id, year, start_date, end_date)
+//   categories(league_id, name, age_range)
+//   rules(category_id, points_win, points_draw, tiebreaker_criteria)
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model League {
+  id    Int    @id @default(autoincrement())
+  name  String // restriccion: NOT NULL
+  sport String // restriccion: NOT NULL
+
+  seasons    Season[]
+  categories Category[]
+
+  @@map("leagues")
+}
+
+model Season {
+  id        Int      @id @default(autoincrement())
+  leagueId  Int      @map("league_id")
+  year      Int
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+
+  league League @relation(fields: [leagueId], references: [id])
+
+  // Indice: listar temporadas de una liga
+  @@index([leagueId])
+  @@map("seasons")
+}
+
+model Category {
+  id       Int    @id @default(autoincrement())
+  leagueId Int    @map("league_id")
+  name     String
+  // Obligatorio: lo usa el Team Service para validar la elegibilidad.
+  // Formato "min-max" en anios, ej: "15-17".
+  ageRange String @map("age_range")
+
+  league League @relation(fields: [leagueId], references: [id])
+  rule   Rule?
+
+  // Indice: listar categorias de una liga
+  @@index([leagueId])
+  @@map("categories")
+}
+
+model Rule {
+  id                 Int    @id @default(autoincrement())
+  // Unico: un solo reglamento vigente por categoria (tambien sirve de indice)
+  categoryId         Int    @unique @map("category_id")
+  pointsWin          Int    @map("points_win")
+  pointsDraw         Int    @map("points_draw")
+  tiebreakerCriteria String @map("tiebreaker_criteria")
+
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@map("rules")
+}

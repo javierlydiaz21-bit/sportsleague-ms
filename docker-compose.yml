@@ -1,0 +1,155 @@
+version: '3.9'
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: sportsleague-redis
+    ports:
+    - 6379:6379
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  fixture-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-fixture-db
+    environment:
+      POSTGRES_USER: fixture_user
+      POSTGRES_PASSWORD: fixture_pass
+      POSTGRES_DB: fixture_db
+    volumes:
+    - fixture_db_data:/var/lib/postgresql/data
+    ports:
+    - 5433:5432
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U fixture_user -d fixture_db
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  referee-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-referee-db
+    environment:
+      POSTGRES_USER: referee_user
+      POSTGRES_PASSWORD: referee_pass
+      POSTGRES_DB: referee_db
+    volumes:
+    - referee_db_data:/var/lib/postgresql/data
+    ports:
+    - 5434:5432
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U referee_user -d referee_db
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  league-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-league-db
+    environment:
+      POSTGRES_USER: league_user
+      POSTGRES_PASSWORD: league_pass
+      POSTGRES_DB: league_db
+    volumes:
+    - league_db_data:/var/lib/postgresql/data
+    ports:
+    - 5435:5432
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U league_user -d league_db
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  team-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-team-db
+    environment:
+      POSTGRES_USER: team_user
+      POSTGRES_PASSWORD: team_pass
+      POSTGRES_DB: team_db
+    volumes:
+    - team_db_data:/var/lib/postgresql/data
+    ports:
+    - 5436:5432
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U team_user -d team_db
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  fixture-service:
+    build: ./fixture-service
+    container_name: sportsleague-fixture-service
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      DATABASE_URL: postgresql://fixture_user:fixture_pass@fixture-db:5432/fixture_db?schema=public
+      REDIS_URL: redis://redis:6379
+      LEAGUE_SERVICE_URL: http://league-service:3003
+      TEAM_SERVICE_URL: http://team-service:3004
+    ports:
+    - 3001:3001
+    depends_on:
+      fixture-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      league-service:
+        condition: service_started
+      team-service:
+        condition: service_started
+  referee-service:
+    build: ./referee-service
+    container_name: sportsleague-referee-service
+    environment:
+      PORT: 3002
+      NODE_ENV: production
+      DATABASE_URL: postgresql://referee_user:referee_pass@referee-db:5432/referee_db?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+    - 3002:3002
+    depends_on:
+      referee-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  league-service:
+    build: ./league-service
+    container_name: sportsleague-league-service
+    environment:
+      PORT: 3003
+      NODE_ENV: production
+      DATABASE_URL: postgresql://league_user:league_pass@league-db:5432/league_db?schema=public
+    ports:
+    - 3003:3003
+    depends_on:
+      league-db:
+        condition: service_healthy
+  team-service:
+    build: ./team-service
+    container_name: sportsleague-team-service
+    environment:
+      PORT: 3004
+      NODE_ENV: production
+      DATABASE_URL: postgresql://team_user:team_pass@team-db:5432/team_db?schema=public
+      LEAGUE_SERVICE_URL: http://league-service:3003
+    ports:
+    - 3004:3004
+    depends_on:
+      team-db:
+        condition: service_healthy
+      league-service:
+        condition: service_started
+volumes:
+  fixture_db_data: null
+  referee_db_data: null
+  league_db_data: null
+  team_db_data: null

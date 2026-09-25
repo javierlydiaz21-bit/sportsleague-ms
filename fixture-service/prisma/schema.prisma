@@ -1,0 +1,37 @@
+// Fixture DB — seccion 3.3 del documento de arquitectura.
+// Tabla y columnas exactamente como estan definidas en el documento:
+//   matches(id, season_id, home_team, away_team, venue, scheduled_at, status)
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Restriccion (3.3): status solo admite estos cuatro valores
+enum MatchStatus {
+  programado
+  en_curso
+  finalizado
+  suspendido
+}
+
+model Match {
+  id          Int         @id @default(autoincrement())
+  seasonId    Int         @map("season_id")    // NOT NULL
+  homeTeam    Int         @map("home_team")    // NOT NULL
+  awayTeam    Int         @map("away_team")    // NOT NULL, distinto de home_team (se valida en el servicio)
+  venue       String
+  scheduledAt DateTime    @map("scheduled_at") // NOT NULL
+  status      MatchStatus @default(programado)
+
+  // Indice critico (3.3): calendario de una temporada por fecha
+  @@index([seasonId, scheduledAt])
+  // Indice adicional (3.3): filtrar partidos pendientes/jugados
+  @@index([status])
+  @@map("matches")
+}

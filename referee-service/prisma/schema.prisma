@@ -1,0 +1,46 @@
+// Referee DB — seccion 3.4 del documento de arquitectura.
+//   referees(id, zone, categories_certified)
+//   referee_assignments(match_id, referee_id, confirmed)
+// + columna availability: la disponibilidad horaria declarada que el
+//   documento pide gestionar (2.4, PUT /referees/{id}/availability).
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Referee {
+  id                  Int      @id @default(autoincrement())
+  zone                String   // NOT NULL
+  // Ids de las categorias (League Service) en las que esta certificado.
+  // Atributo propio del arbitro, no depende de match_id (3.4).
+  categoriesCertified Int[]    @map("categories_certified")
+  // Dias en que declara estar disponible, ej: {sabado,domingo}
+  availability        String[]
+
+  assignments RefereeAssignment[]
+
+  // Indice (3.4): asignacion por cercania geografica
+  @@index([zone])
+  @@map("referees")
+}
+
+model RefereeAssignment {
+  id        Int     @id @default(autoincrement())
+  matchId   Int     @map("match_id")
+  refereeId Int     @map("referee_id")
+  confirmed Boolean @default(false) // false hasta que el arbitro confirma (3.4)
+
+  referee Referee @relation(fields: [refereeId], references: [id])
+
+  // Restriccion (3.4): evita asignaciones duplicadas
+  @@unique([matchId, refereeId])
+  // Indice (3.4): arbitro asignado a un partido
+  @@index([matchId])
+  @@map("referee_assignments")
+}
