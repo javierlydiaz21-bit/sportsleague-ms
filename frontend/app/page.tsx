@@ -14,11 +14,13 @@ const SPORT_LABEL: Record<string, string> = { futbol: "Fútbol", basquet: "Básq
 
 export default async function Home() {
   await connection(); // datos actuales en cada visita
-  const [leagues, live, health] = await Promise.all([
+  const [allLeagues, live, health] = await Promise.all([
     getJson<League[]>("/leagues"),
     getJson<LiveMatch[]>("/live-matches?status=en_curso"),
     getJson<HealthReport>("/health/services", 12000),
   ]);
+  // Las ligas mas recientes primero
+  const leagues = allLeagues && [...allLeagues].sort((a, b) => b.id - a.id);
   const teams = await teamsById((live ?? []).flatMap((m) => [m.homeTeam, m.awayTeam]));
   const services = health ? [{ key: "gateway", name: "API Gateway", status: health.gateway.status }, ...health.services] : [];
   const down = services.filter((s) => s.status !== "ok").length;

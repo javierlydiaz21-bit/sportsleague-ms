@@ -72,21 +72,36 @@ function errorMessage(data: unknown, status: number): string {
   if (Array.isArray(msg)) return msg.join(". ");
   if (msg) return msg;
   if (status === 0) return "Sin conexión con el API Gateway. Revisa que esté corriendo.";
+  if (status >= 502) return "Un servicio está despertando (plan gratuito de Render). Intenta de nuevo en un minuto.";
   return `Error ${status}`;
 }
+
+const WAKE_RETRIES = 8;
+const WAKE_DELAY_MS = 6000;
+
+/**
+ * En el plan gratuito de Render un servicio dormido tarda cerca de un minuto en
+ * despertar; mientras tanto Render responde 502/503 con una pagina HTML, sin que la
+ * peticion llegue al servicio. En ese caso se reintenta (es seguro incluso en un POST).
+ */
+const isWaking = (res: Response) => res.status >= 502 && !res.headers.get("content-type")?.includes("json");
 
 async function request(method: string, path: string, body: unknown, token?: string) {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
-  try {
-    return await fetch(`${API_URL}/api/v1${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    return null;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(`${API_URL}/api/v1${path}`, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+      if (!isWaking(res) || attempt >= WAKE_RETRIES) return res;
+    } catch {
+      if (attempt >= WAKE_RETRIES) return null;
+    }
+    await new Promise((r) => setTimeout(r, WAKE_DELAY_MS));
   }
 }
 
