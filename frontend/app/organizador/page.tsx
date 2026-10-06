@@ -1,6 +1,7 @@
 "use client";
 
 import DemoData from "@/components/organizer/demo-data";
+import ServiceStatus from "@/components/service-status";
 import Fixture from "@/components/organizer/fixture";
 import Leagues from "@/components/organizer/leagues";
 import Referees from "@/components/organizer/referees";
@@ -11,6 +12,7 @@ import { useApi } from "@/lib/use-api";
 import type { League } from "@/lib/types";
 
 const SECTIONS = [
+  ["#estado", "Estado del sistema"],
   ["#demo", "Datos de ejemplo"],
   ["#ligas", "Ligas"],
   ["#equipos", "Equipos"],
@@ -40,6 +42,7 @@ export default function OrganizerPage() {
         </nav>
       </header>
       {leagues.error && <Notice tone="error">{leagues.error}</Notice>}
+      <ServiceStatus />
       <DemoData onDone={leagues.reload} />
       {leagues.data && (
         <>

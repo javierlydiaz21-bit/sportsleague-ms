@@ -169,9 +169,9 @@
       <p id="env" class="env"></p>
       <form class="session" onsubmit="event.preventDefault(); guard(this.querySelector('button'), loginOrganizer)">
         <label>Organizador<input id="lg-email" type="email" value="admin@sportsleague.co" autocomplete="username" /></label>
-        <label>Contraseña<input id="lg-pass" type="password" value="admin12345" autocomplete="current-password" /></label>
+        <label>Contraseña<input id="lg-pass" type="password" autocomplete="current-password" /></label>
         <button class="secondary" type="submit">Iniciar sesión</button>
-        <span id="session-status" aria-live="polite">Sin sesión: se inicia sola al ejecutar un paso.</span>
+        <span id="session-status" aria-live="polite">Escribe la contraseña del organizador para usar el panel.</span>
       </form>
     </div>
     <div class="run">
@@ -453,10 +453,15 @@ async function loginOrganizer() {
   if (!r) throw new Error('No hay conexión con el API Gateway. Revisa que docker compose up esté corriendo.');
   const data = await r.json().catch(() => ({}));
   if (!r.ok) { $('session-status').textContent = 'No se pudo iniciar sesión: ' + (data.message || r.status); throw new Error(data.message || 'Login fallido'); }
+  if (data.user.role !== 'organizador') {
+    $('session-status').textContent = 'Este panel es solo para organizadores.';
+    throw new Error('Este panel es solo para organizadores.');
+  }
   TOKEN = data.accessToken;
   state.userId = data.user.id;
   $('session-status').textContent = `Sesión: ${data.user.name} (${data.user.role}). El gateway valida el JWT en cada petición.`;
   log('POST /auth/login (API Gateway)', 'sync', { user: data.user, accessToken: data.accessToken.slice(0, 24) + '…' });
+  checkHealth();
 }
 
 /* ---------- Llamadas HTTP: todas pasan por el API Gateway ---------- */
@@ -527,8 +532,13 @@ function lightGateway() {
 /* ---------- Salud de los servicios (a traves del gateway) ---------- */
 // En Render gratis un servicio dormido tarda cerca de un minuto en despertar;
 // estas consultas periodicas lo despiertan y lo mantienen activo mientras el panel este abierto.
+// El estado de los servicios es informacion para organizadores: solo con sesion iniciada.
 let healthRunning = false;
 async function checkHealth() {
+  if (!TOKEN) {
+    $('env').textContent = 'Inicia sesión como organizador para ver el estado de los servicios.';
+    return;
+  }
   if (healthRunning) return;
   healthRunning = true;
   const mark = (key, ok) => { const n = $('n-' + key); if (n) { n.classList.toggle('up', ok); n.classList.toggle('down', !ok); } };
