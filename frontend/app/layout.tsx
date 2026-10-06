@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
+import KeepAwake from "@/components/keep-awake";
 import Nav from "@/components/nav";
 import "./globals.css";
 
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="es" className={`h-full antialiased ${barlow.variable} ${barlowCondensed.variable}`}>
       <body className="min-h-full font-sans">
         <Nav />
+        <KeepAwake />
         <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8">{children}</div>
       </body>
     </html>
