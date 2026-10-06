@@ -32,6 +32,9 @@ declara estar disponible, por ejemplo `{sabado,domingo}`.
 | GET  | `/api/v1/referees/{id}/assignments` |
 | PUT  | `/api/v1/assignments/{id}/confirm` |
 
+Lecturas de apoyo: `GET /api/v1/referees` (panel de organizadores) y
+`GET /api/v1/referees/{id}`.
+
 Más `GET /api/v1/health`, `GET /api/v1/status` y la documentación en `/docs`.
 
 ## Asignación automática (evento `fixture.published`)

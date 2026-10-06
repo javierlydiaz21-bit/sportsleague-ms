@@ -18,10 +18,22 @@ export interface FixturePublishedPayload {
   }>;
 }
 
+export interface VenueChangedPayload {
+  matchId: number;
+  seasonId: number;
+  homeTeam: number;
+  awayTeam: number;
+  venue: string;
+  previousVenue: string;
+  scheduledAt: string;
+}
+
 /**
  * Publicador de eventos ASINCRONOS sobre Redis Pub/Sub (documento, 2.3 y 4.2).
- * Evento: fixture.published, uno por cada jornada confirmada.
- * Consumidores segun el documento: Referee Service y Notification Service.
+ *  - fixture.published: uno por cada jornada confirmada. Consumidores segun el
+ *    documento: Referee Service y Notification Service.
+ *  - fixture.venue_changed: cambio de sede de un partido ya publicado, para que el
+ *    Notification Service avise los "cambios de sede de ultimo momento" (2.7).
  */
 @Injectable()
 export class RedisPublisherService implements OnModuleInit, OnModuleDestroy {
@@ -46,16 +58,26 @@ export class RedisPublisherService implements OnModuleInit, OnModuleDestroy {
   }
 
   async publishFixturePublished(payload: FixturePublishedPayload): Promise<void> {
-    const envelope = { type: 'fixture.published', emittedAt: new Date().toISOString(), data: payload };
+    await this.publish(
+      'fixture.published',
+      payload,
+      `temporada ${payload.seasonId}, jornada ${payload.jornada}, ${payload.matches.length} partido(s)`,
+    );
+  }
+
+  async publishVenueChanged(payload: VenueChangedPayload): Promise<void> {
+    await this.publish('fixture.venue_changed', payload, `partido ${payload.matchId}, nueva sede ${payload.venue}`);
+  }
+
+  private async publish(type: string, data: object, summary: string): Promise<void> {
+    const envelope = { type, emittedAt: new Date().toISOString(), data };
     try {
       await this.client.publish(FIXTURE_EVENTS_CHANNEL, JSON.stringify(envelope));
-      this.logger.log(
-        `Evento publicado: fixture.published (temporada ${payload.seasonId}, jornada ${payload.jornada}, ${payload.matches.length} partido(s))`,
-      );
+      this.logger.log(`Evento publicado: ${type} (${summary})`);
     } catch (err) {
       // Prioridad a la baja latencia (documento, 4.2): el calendario ya quedo
       // guardado; un evento perdido se corrige despues (consistencia eventual).
-      this.logger.error(`Fallo al publicar fixture.published: ${(err as Error).message}`);
+      this.logger.error(`Fallo al publicar ${type}: ${(err as Error).message}`);
     }
   }
 }

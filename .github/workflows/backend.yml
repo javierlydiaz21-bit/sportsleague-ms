@@ -10,10 +10,10 @@ name: Backend CI/CD
 on:
   push:
     branches: [main, develop]
-    paths: ["*-service/**", ".github/workflows/backend.yml"]
+    paths: ["*-service/**", "api-gateway/**", ".github/workflows/backend.yml"]
   pull_request:
     branches: [main, develop]
-    paths: ["*-service/**", ".github/workflows/backend.yml"]
+    paths: ["*-service/**", "api-gateway/**", ".github/workflows/backend.yml"]
   workflow_dispatch:
 
 permissions:
@@ -36,6 +36,16 @@ jobs:
             deploy_hook: RENDER_DEPLOY_HOOK_FIXTURE
           - service: referee-service
             deploy_hook: RENDER_DEPLOY_HOOK_REFEREE
+          - service: live-score-service
+            deploy_hook: RENDER_DEPLOY_HOOK_LIVE_SCORE
+          - service: statistics-service
+            deploy_hook: RENDER_DEPLOY_HOOK_STATISTICS
+          - service: notification-service
+            deploy_hook: RENDER_DEPLOY_HOOK_NOTIFICATION
+          - service: analytics-service
+            deploy_hook: RENDER_DEPLOY_HOOK_ANALYTICS
+          - service: api-gateway
+            deploy_hook: RENDER_DEPLOY_HOOK_GATEWAY
     defaults:
       run:
         working-directory: ${{ matrix.service }}

@@ -1,0 +1,93 @@
+// Statistics DB — seccion 3.6 del documento de arquitectura.
+//   standings(season_id, team_id, points, wins, draws, losses, goal_difference)
+//   top_scorers(season_id, player_id, goals)
+//   disciplinary_records(player_id, yellow_cards, red_cards)
+// + standings.goals_for / goals_against: los goles a favor y en contra que dan
+//   la goal_difference y sirven de criterio de desempate.
+// + match_results y match_result_events: el acta de cada partido recibida en
+//   match.completed. Con ellas las tablas se recalculan desde cero en cada acta,
+//   de forma idempotente (documento 2.6 y 4.3): reprocesar o corregir un acta
+//   nunca duplica goles ni puntos.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Standing {
+  id             Int @id @default(autoincrement())
+  seasonId       Int @map("season_id")
+  teamId         Int @map("team_id")
+  points         Int // NOT NULL
+  wins           Int
+  draws          Int
+  losses         Int
+  goalsFor       Int @map("goals_for")
+  goalsAgainst   Int @map("goals_against")
+  goalDifference Int @map("goal_difference")
+
+  // Restriccion e indice (3.6): una fila por equipo y temporada
+  @@unique([seasonId, teamId])
+  @@map("standings")
+}
+
+model TopScorer {
+  id       Int @id @default(autoincrement())
+  seasonId Int @map("season_id")
+  playerId Int @map("player_id")
+  goals    Int // no puede ser negativo (CHECK en la migracion)
+
+  @@unique([seasonId, playerId])
+  // Indice (3.6): ordenar el ranking de goleadores
+  @@index([seasonId, goals])
+  @@map("top_scorers")
+}
+
+model DisciplinaryRecord {
+  id          Int @id @default(autoincrement())
+  // Indice (3.6) y una sola fila por jugador
+  playerId    Int @unique @map("player_id")
+  yellowCards Int @map("yellow_cards")
+  redCards    Int @map("red_cards")
+
+  @@map("disciplinary_records")
+}
+
+model MatchResult {
+  matchId     Int      @id @map("match_id")
+  seasonId    Int      @map("season_id")
+  categoryId  Int      @map("category_id")
+  homeTeam    Int      @map("home_team")
+  awayTeam    Int      @map("away_team")
+  homeGoals   Int      @map("home_goals")
+  awayGoals   Int      @map("away_goals")
+  // Puntos segun el reglamento de la categoria; null hasta poder consultarlo
+  homePoints  Int?     @map("home_points")
+  awayPoints  Int?     @map("away_points")
+  completedAt DateTime @map("completed_at")
+
+  events MatchResultEvent[]
+
+  @@index([seasonId])
+  @@map("match_results")
+}
+
+model MatchResultEvent {
+  id       Int    @id @default(autoincrement())
+  matchId  Int    @map("match_id")
+  type     String
+  minute   Int
+  teamId   Int    @map("team_id")
+  playerId Int?   @map("player_id")
+
+  result MatchResult @relation(fields: [matchId], references: [matchId], onDelete: Cascade)
+
+  @@index([matchId])
+  @@index([playerId])
+  @@map("match_result_events")
+}

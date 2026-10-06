@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TeamsService } from './teams.service';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { CreatePlayerDto } from './dto/create-player.dto';
@@ -14,6 +14,26 @@ export class TeamsController {
   @ApiOperation({ summary: 'Registrar un equipo' })
   create(@Body() dto: CreateTeamDto) {
     return this.teamsService.create(dto);
+  }
+
+  // GET /api/v1/teams?categoryId=1 o ?ids=1,2,3 — lectura de apoyo para la web
+  @Get()
+  @ApiOperation({ summary: 'Listar equipos (con su plantilla) por categoria o por ids' })
+  @ApiQuery({ name: 'categoryId', required: false, example: 1 })
+  @ApiQuery({ name: 'ids', required: false, example: '1,2,3' })
+  findMany(@Query('categoryId') categoryId?: string, @Query('ids') ids?: string) {
+    const toInt = (v: string) => {
+      const n = Number(v);
+      if (!Number.isInteger(n)) throw new BadRequestException(`"${v}" no es un id valido`);
+      return n;
+    };
+    if (categoryId === undefined && ids === undefined) {
+      throw new BadRequestException('Indique categoryId o ids');
+    }
+    return this.teamsService.findMany({
+      categoryId: categoryId !== undefined ? toInt(categoryId) : undefined,
+      ids: ids !== undefined ? ids.split(',').filter(Boolean).map(toInt) : undefined,
+    });
   }
 
   // GET /api/v1/teams/{id}

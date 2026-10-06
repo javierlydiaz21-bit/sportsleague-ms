@@ -17,6 +17,7 @@ local y visitante.
 | Comunicación síncrona (2.3, 4.1) | REST al League Service (reglamento) y al Team Service (equipos participantes) | ✅ |
 | Resiliencia (4.4) | timeouts · retries · circuit breaker · 503 si el servicio dependiente no está disponible | ✅ |
 | Eventos (2.3, 4.2) | Publica `fixture.published` al confirmar cada jornada completa | un evento por jornada ✅ |
+| Estado del partido (3.3) | programado, en_curso, finalizado, suspendido | se actualiza con los eventos del Live Score Service ✅ |
 
 ## Endpoints (documento, 2.3)
 
@@ -49,6 +50,15 @@ Más `GET /api/v1/health`, `GET /api/v1/status` y la documentación en `/docs`.
 Si League o Team no responden, cada llamada espera 3 s y se reintenta
 2 veces. Tras 3 fallos seguidos el circuit breaker se abre 20 s, y en ese
 caso se responde 503.
+
+## Otros eventos
+
+- **Publica `fixture.venue_changed`** al cambiar la sede de un partido, para
+  que el Notification Service avise los cambios de sede de último momento (2.7).
+- **Consume `match.event`, `match.completed` y `match.suspended`** del Live
+  Score Service: el partido pasa a `en_curso` con el primer evento en vivo, a
+  `finalizado` al cerrarse y a `suspendido` si se suspende. Así el calendario
+  muestra el estado real (consistencia eventual).
 
 La `zone` viaja en la petición y en el evento porque el Referee Service la
 necesita para asignar árbitros por zona geográfica (2.4). La tabla

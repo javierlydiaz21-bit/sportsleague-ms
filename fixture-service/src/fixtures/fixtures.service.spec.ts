@@ -7,10 +7,16 @@ function build(options: { existing?: number; rules?: any; teams?: Record<number,
     match: {
       count: jest.fn().mockResolvedValue(options.existing ?? 0),
       create: jest.fn(({ data }) => ({ id: nextId++, status: 'programado', ...data })),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
   };
-  const publisher: any = { publishFixturePublished: jest.fn().mockResolvedValue(undefined) };
+  const publisher: any = {
+    publishFixturePublished: jest.fn().mockResolvedValue(undefined),
+    publishVenueChanged: jest.fn().mockResolvedValue(undefined),
+  };
   const league: any = {
     getRules: jest.fn().mockResolvedValue(
       'rules' in options ? options.rules : { id: 1, categoryId: 1, pointsWin: 3, pointsDraw: 1, tiebreakerCriteria: 'dg' },
@@ -76,5 +82,56 @@ describe('FixturesService.generate', () => {
   it('rechaza si un equipo pertenece a otra categoria', async () => {
     const { service } = build({ teams: { 1: 1, 2: 1, 3: 2, 4: 1 } });
     await expect(service.generate(1, dto)).rejects.toThrow('pertenece a la categoria 2');
+  });
+});
+
+describe('FixturesService.updateVenue', () => {
+  const stored = { id: 1, seasonId: 1, homeTeam: 1, awayTeam: 2, venue: 'Cancha 1', scheduledAt: new Date('2026-10-03') };
+
+  it('publica fixture.venue_changed cuando la sede cambia', async () => {
+    const { service, prisma, publisher } = build();
+    prisma.match.findUnique.mockResolvedValue(stored);
+    prisma.match.update.mockResolvedValue({ ...stored, venue: 'Estadio' });
+    await service.updateVenue(1, { venue: 'Estadio' });
+    expect(publisher.publishVenueChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ matchId: 1, venue: 'Estadio', previousVenue: 'Cancha 1' }),
+    );
+  });
+
+  it('no publica nada si la sede es la misma', async () => {
+    const { service, prisma, publisher } = build();
+    prisma.match.findUnique.mockResolvedValue(stored);
+    prisma.match.update.mockResolvedValue(stored);
+    await service.updateVenue(1, { venue: 'Cancha 1' });
+    expect(publisher.publishVenueChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe('FixturesService.applyLiveEvent (consumo de eventos del Live Score Service)', () => {
+  it('match.event pasa el partido de programado a en_curso', async () => {
+    const { service, prisma } = build();
+    await service.applyLiveEvent('match.event', 5);
+    expect(prisma.match.updateMany).toHaveBeenCalledWith({
+      where: { id: 5, status: 'programado' },
+      data: { status: 'en_curso' },
+    });
+  });
+
+  it('match.completed marca el partido como finalizado', async () => {
+    const { service, prisma } = build();
+    await service.applyLiveEvent('match.completed', 5);
+    expect(prisma.match.updateMany.mock.calls[0][0].data).toEqual({ status: 'finalizado' });
+  });
+
+  it('match.suspended no cambia un partido ya finalizado', async () => {
+    const { service, prisma } = build();
+    await service.applyLiveEvent('match.suspended', 5);
+    expect(prisma.match.updateMany.mock.calls[0][0].where).toEqual({ id: 5, status: { not: 'finalizado' } });
+  });
+
+  it('ignora otros tipos de evento', async () => {
+    const { service, prisma } = build();
+    expect(await service.applyLiveEvent('match.event_annulled', 5)).toBeNull();
+    expect(prisma.match.updateMany).not.toHaveBeenCalled();
   });
 });

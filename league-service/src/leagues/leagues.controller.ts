@@ -1,4 +1,4 @@
-import { Body, Controller, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LeaguesService } from './leagues.service';
 import { CreateLeagueDto } from './dto/create-league.dto';
@@ -15,6 +15,22 @@ export class LeaguesController {
   @ApiResponse({ status: 201, description: 'Liga creada.' })
   create(@Body() dto: CreateLeagueDto) {
     return this.leaguesService.create(dto);
+  }
+
+  // GET /api/v1/leagues — lectura de apoyo para la web: ligas con sus temporadas y categorias
+  @Get()
+  @ApiOperation({ summary: 'Listar las ligas con sus temporadas y categorias' })
+  findAll() {
+    return this.leaguesService.findAll();
+  }
+
+  // GET /api/v1/leagues/{id}
+  @Get(':id')
+  @ApiOperation({ summary: 'Consultar una liga con sus temporadas y categorias' })
+  @ApiParam({ name: 'id', example: 1 })
+  @ApiResponse({ status: 404, description: 'La liga no existe.' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.leaguesService.findOne(id);
   }
 
   // POST /api/v1/leagues/{id}/seasons

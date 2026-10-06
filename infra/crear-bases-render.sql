@@ -5,3 +5,8 @@ CREATE DATABASE league_db;
 CREATE DATABASE team_db;
 CREATE DATABASE fixture_db;
 CREATE DATABASE referee_db;
+CREATE DATABASE live_score_db;
+CREATE DATABASE statistics_db;
+CREATE DATABASE notification_db;
+CREATE DATABASE analytics_db;
+CREATE DATABASE gateway_db;

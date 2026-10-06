@@ -1,0 +1,41 @@
+// Notification DB — documento, seccion 2.7: el servicio no necesita base de datos
+// para su dominio central (reacciona a eventos), salvo "una tabla ligera de
+// preferencias de usuario". Ademas se guardan las notificaciones generadas, para
+// que GET /notifications/{userId} pueda mostrarlas.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model NotificationPreference {
+  userId        Int      @id @map("user_id") // usuario del API Gateway
+  followedTeams Int[]    @map("followed_teams")
+  channels      String[] // push, email
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_preferences")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  // Clave del hecho notificado (ej: resultado:12). Reprocesar el mismo evento
+  // actualiza la notificacion en vez de duplicarla (idempotencia, 1.5).
+  key       String   @unique
+  type      String   // horario_confirmado, cambio_de_sede, resultado_final, partido_suspendido, prueba
+  title     String
+  body      String
+  matchId   Int?     @map("match_id")
+  teamIds   Int[]    @map("team_ids")
+  // Solo para notificaciones dirigidas a un usuario (prueba)
+  userId    Int?     @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("notifications")
+}

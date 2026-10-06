@@ -1,0 +1,65 @@
+// Analytics DB — seccion 3.7 del documento de arquitectura.
+//   attendance_estimates(match_id, estimated_attendance)
+//   suspended_matches(match_id, reason)
+//   team_performance_trend(team_id, season_id, trend_metric)
+// Las tres tablas se reescriben en cada corrida del ETL; no reciben escrituras
+// desde otros servicios (3.7).
+// + season_id en las dos primeras, para filtrar por temporada.
+// + team_performance_trend.match_number y points: la tendencia es una serie
+//   (un punto por partido jugado), no un solo valor.
+// + etl_runs: historial de corridas del ETL (cuando corrio y que encontro).
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AttendanceEstimate {
+  id                  Int @id @default(autoincrement())
+  matchId             Int @unique @map("match_id") // NOT NULL
+  seasonId            Int @map("season_id")
+  estimatedAttendance Int @map("estimated_attendance")
+
+  @@index([seasonId])
+  @@map("attendance_estimates")
+}
+
+model SuspendedMatch {
+  id       Int    @id @default(autoincrement())
+  matchId  Int    @unique @map("match_id") // NOT NULL
+  seasonId Int    @map("season_id")
+  reason   String
+
+  @@index([seasonId])
+  @@map("suspended_matches")
+}
+
+model TeamPerformanceTrend {
+  id          Int   @id @default(autoincrement())
+  teamId      Int   @map("team_id")   // NOT NULL
+  seasonId    Int   @map("season_id") // NOT NULL
+  matchNumber Int   @map("match_number")
+  matchId     Int   @map("match_id")
+  points      Int   // puntos acumulados hasta ese partido
+  trendMetric Float @map("trend_metric") // puntos por partido hasta ese partido
+
+  // Indice (3.7): graficar la evolucion de un equipo
+  @@index([teamId, seasonId])
+  @@map("team_performance_trend")
+}
+
+model EtlRun {
+  id         Int       @id @default(autoincrement())
+  startedAt  DateTime  @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  status     String    // ok, parcial, error
+  summary    Json?
+  errors     String[]
+
+  @@map("etl_runs")
+}

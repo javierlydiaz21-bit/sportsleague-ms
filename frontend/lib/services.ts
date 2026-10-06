@@ -1,26 +1,16 @@
-export type ServiceKey = "fixture" | "referee" | "league" | "team";
+import type { MatchStatus } from "./types";
 
-export const SERVICES: { key: ServiceKey; name: string; env: string; local: string }[] = [
-  { key: "league", name: "League Service", env: "LEAGUE_SERVICE_URL", local: "http://localhost:3003" },
-  { key: "team", name: "Team Service", env: "TEAM_SERVICE_URL", local: "http://localhost:3004" },
-  { key: "fixture", name: "Fixture Service", env: "FIXTURE_SERVICE_URL", local: "http://localhost:3001" },
-  { key: "referee", name: "Referee Service", env: "REFEREE_SERVICE_URL", local: "http://localhost:3002" },
-];
+/**
+ * URL del API Gateway (documento 8.1: NEXT_PUBLIC_API_URL). Es el unico punto de
+ * entrada: el frontend nunca llama directamente a un microservicio. En local, sin
+ * la variable, se usa el gateway de docker compose.
+ */
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/+$/, "");
 
-/** URL base del servicio: la de Render si esta configurada; si no, la de docker compose. */
-export function serviceUrl(key: ServiceKey): string {
-  const s = SERVICES.find((x) => x.key === key)!;
-  return (process.env[s.env] || s.local).replace(/\/+$/, "");
-}
-
-export function isConfigured(): boolean {
-  return SERVICES.every((s) => Boolean(process.env[s.env]));
-}
-
-/** GET con timeout. Devuelve null si el servicio no responde o responde con error. */
-export async function getJson<T>(url: string, timeoutMs = 9000): Promise<T | null> {
+/** GET publico con timeout (paginas del servidor). Devuelve null si falla. */
+export async function getJson<T>(path: string, timeoutMs = 9000): Promise<T | null> {
   try {
-    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetch(`${API_URL}/api/v1${path}`, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -31,3 +21,17 @@ export async function getJson<T>(url: string, timeoutMs = 9000): Promise<T | nul
 const DAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 export const utcDate = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 export const utcDay = (iso: string) => DAYS[new Date(iso).getUTCDay()];
+
+export const STATUS_LABEL: Record<MatchStatus, string> = {
+  programado: "Programado",
+  en_curso: "En vivo",
+  finalizado: "Finalizado",
+  suspendido: "Suspendido",
+};
+
+export const STATUS_CLASS: Record<MatchStatus, string> = {
+  programado: "bg-surface-2 text-muted",
+  en_curso: "bg-live/15 text-live",
+  finalizado: "bg-ok/15 text-ok",
+  suspendido: "bg-async/15 text-async",
+};

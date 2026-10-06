@@ -24,6 +24,18 @@ export class TeamsService {
     return this.prisma.team.create({ data: dto });
   }
 
+  /** GET /teams?categoryId=&ids= — equipos con su plantilla (lectura de apoyo para la web). */
+  findMany(filter: { categoryId?: number; ids?: number[] }) {
+    return this.prisma.team.findMany({
+      where: {
+        ...(filter.categoryId !== undefined && { categoryId: filter.categoryId }),
+        ...(filter.ids && { id: { in: filter.ids } }),
+      },
+      include: { players: { orderBy: { jerseyNumber: 'asc' } } },
+      orderBy: { id: 'asc' },
+    });
+  }
+
   async findOne(id: number) {
     const team = await this.prisma.team.findUnique({ where: { id } });
     if (!team) {
@@ -57,6 +69,7 @@ export class TeamsService {
     return this.prisma.player.create({
       data: {
         teamId,
+        name: dto.name,
         birthDate,
         jerseyNumber: dto.jerseyNumber,
         eligibilityStatus: status,

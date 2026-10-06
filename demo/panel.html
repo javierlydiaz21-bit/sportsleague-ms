@@ -31,6 +31,7 @@
   body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--body); }
   h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; letter-spacing: .01em; }
   code { font-family: var(--mono); font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  a { color: var(--sync); }
   :focus-visible { outline: 2px solid var(--sync); outline-offset: 2px; }
 
   /* ---------- Cabecera + diagrama ---------- */
@@ -39,17 +40,22 @@
   header h1 { font-size: 30px; }
   header p { margin: 2px 0 0; color: var(--muted); }
   header p.env { font-size: 13.5px; }
+  .session { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .session label { margin: 0; }
+  .session input { width: 210px; }
+  #session-status { font-size: 13.5px; color: var(--muted); align-self: center; }
   .run { display: flex; align-items: center; gap: 12px; }
   #run-status { color: var(--muted); font-size: 14px; min-height: 1.5em; }
 
   .diagram-wrap { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 28px 8px; }
   .diagram { max-width: 1184px; margin: 0 auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 12px 2px; }
-  .diagram svg { width: 100%; max-height: 190px; display: block; }
-  @media (max-width: 900px), (max-height: 600px) { .diagram-wrap { position: static; padding: 10px 16px; } .step { scroll-margin-top: 16px !important; } }
+  .diagram svg { width: 100%; max-height: 270px; display: block; }
+  @media (max-width: 900px), (max-height: 700px) { .diagram-wrap { position: static; padding: 10px 16px; } .step { scroll-margin-top: 16px !important; } }
   .legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 4px 6px 8px; }
   .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
   .legend .l-sync::before { border-color: var(--sync); }
   .legend .l-async::before { border-color: var(--async); border-top-style: dashed; }
+  .legend .l-etl::before { border-color: var(--muted); border-top-style: dotted; }
   .legend .l-dot::before { width: 10px; height: 10px; border: none; border-radius: 50%; background: var(--ok); }
 
   .node rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; transition: stroke .3s, fill .3s; }
@@ -60,19 +66,23 @@
   .node.up .dot { fill: var(--ok); }
   .node.down .dot { fill: var(--error); }
   .node.redis rect { fill: var(--async-bg); stroke: #6b4f25; }
+  .node.gateway rect { fill: var(--sync-bg); stroke: #2c6b65; }
   .edge { fill: none; stroke: var(--line); stroke-width: 2; marker-end: url(#arrow-idle); transition: stroke .25s, stroke-width .25s; }
   .edge.async { stroke-dasharray: 7 6; }
+  .edge.etl { stroke-dasharray: 2 5; }
   .edge.sync.active { stroke: var(--sync); stroke-width: 3.5; marker-end: url(#arrow-sync); }
   .edge.async.active { stroke: var(--async); stroke-width: 3.5; marker-end: url(#arrow-async); animation: flow .6s linear infinite; }
+  .edge.etl.active { stroke: var(--text); stroke-width: 3; }
   @keyframes flow { to { stroke-dashoffset: -26; } }
   .edge-label { font: 500 12px var(--body); fill: var(--muted); }
   .edge-label.active-sync { fill: var(--sync); }
   .edge-label.active-async { fill: var(--async); }
+  .edge-label.active-etl { fill: var(--text); }
 
   /* ---------- Pasos ---------- */
   main { max-width: 1240px; margin: 0 auto; padding: 18px 28px 60px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } header, main { padding-left: 16px; padding-right: 16px; } }
-  .step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 20px; scroll-margin-top: 240px; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 20px; scroll-margin-top: 320px; }
   .step.wide { grid-column: 1 / -1; }
   .step-head { display: flex; align-items: baseline; gap: 12px; }
   .step-num { font: 700 30px/1 var(--display); color: var(--sync); min-width: 22px; }
@@ -88,8 +98,8 @@
   input, select, textarea { width: 100%; margin-top: 3px; padding: 8px 9px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 7px; font: 14px var(--body); }
   textarea { resize: vertical; min-height: 84px; }
   .days { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
-  .days label { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 14px; }
-  .days input { width: auto; margin: 0; }
+  .days label, label.check { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 14px; }
+  .days input, label.check input { width: auto; margin: 0; }
   .hint { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
 
   .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -114,17 +124,22 @@
   dl.ids { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; margin: 6px 0 0; }
   dl.ids dt { color: var(--muted); }
   dl.ids dd { margin: 0; }
+  .score { font: 700 44px/1 var(--display); text-align: center; margin: 10px 0 4px; font-variant-numeric: tabular-nums; }
+  .score small { display: block; font: 600 15px var(--body); color: var(--muted); margin-top: 6px; }
 
   .table-wrap { overflow-x: auto; margin-top: 8px; }
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   th { color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr.jornada td { color: var(--async); font-weight: 600; padding-top: 10px; }
   .referee-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 4px 24px; }
+  .two-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 4px 24px; }
   .badge { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12.5px; font-weight: 600; }
-  .badge.elegible, .badge.si { background: #183a25; color: var(--ok); }
+  .badge.elegible, .badge.si, .badge.finalizado { background: #183a25; color: var(--ok); }
   .badge.no_elegible { background: var(--error-bg); color: var(--error); }
-  .badge.pendiente, .badge.no { background: var(--async-bg); color: var(--async); }
+  .badge.pendiente, .badge.no, .badge.en_curso, .badge.suspendido { background: var(--async-bg); color: var(--async); }
+  .badge.programado { background: var(--surface-2); color: var(--muted); }
 
   /* ---------- Registro ---------- */
   .log { grid-column: 1 / -1; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; }
@@ -150,8 +165,14 @@
   <div class="top">
     <div>
       <h1>SportsLeague — Panel de pruebas</h1>
-      <p>Team, League, Fixture y Referee Service funcionando juntos.</p>
+      <p>Los ocho microservicios trabajando juntos, a través del API Gateway. <a href="/">Ir a la web</a></p>
       <p id="env" class="env"></p>
+      <form class="session" onsubmit="event.preventDefault(); guard(this.querySelector('button'), loginOrganizer)">
+        <label>Organizador<input id="lg-email" type="email" value="admin@sportsleague.co" autocomplete="username" /></label>
+        <label>Contraseña<input id="lg-pass" type="password" value="admin12345" autocomplete="current-password" /></label>
+        <button class="secondary" type="submit">Iniciar sesión</button>
+        <span id="session-status" aria-live="polite">Sin sesión: se inicia sola al ejecutar un paso.</span>
+      </form>
     </div>
     <div class="run">
       <span id="run-status" aria-live="polite"></span>
@@ -162,56 +183,80 @@
 
 <div class="diagram-wrap">
   <div class="diagram">
-    <svg viewBox="0 8 1000 214" role="img" aria-label="Diagrama de comunicación entre los cuatro microservicios">
+    <svg viewBox="0 0 1000 330" role="img" aria-label="Diagrama de comunicación entre los microservicios de SportsLeague">
       <defs>
         <marker id="arrow-idle" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#29432f"/></marker>
         <marker id="arrow-sync" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4fb3a9"/></marker>
         <marker id="arrow-async" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d49a4a"/></marker>
       </defs>
 
-      <!-- Aristas: la flecha apunta al servicio consultado -->
-      <path id="e-fl" class="edge sync" d="M360,100 C300,100 282,55 226,55" />
-      <path id="e-ft" class="edge sync" d="M360,132 C300,132 282,175 226,175" />
-      <path id="e-tl" class="edge sync" d="M120,140 L120,96" />
-      <path id="e-fr" class="edge async" d="M560,115 L600,115" />
-      <path id="e-rr" class="edge async" d="M746,115 L786,115" />
-      <text id="l-fl" class="edge-label" x="238" y="98">reglamento</text>
-      <text id="l-ft" class="edge-label" x="252" y="142">equipos</text>
-      <text id="l-tl" class="edge-label" x="130" y="123">age_range</text>
-      <text id="l-fr" class="edge-label" x="566" y="86">fixture.published</text>
+      <!-- Aristas: la flecha apunta al servicio consultado o al suscriptor -->
+      <path id="e-sl" class="edge sync" d="M790,22 L180,22 Q150,22 150,48" />
+      <path id="e-fl" class="edge sync" d="M300,80 L212,80" />
+      <path id="e-ft" class="edge sync" d="M300,98 C258,98 258,200 212,200" />
+      <path id="e-tl" class="edge sync" d="M95,168 L95,114" />
+      <path id="e-fr" class="edge async" d="M490,80 C522,80 518,136 543,136" />
+      <path id="e-lr" class="edge async" d="M490,200 C522,200 518,150 543,150" />
+      <path id="e-rs" class="edge async" d="M675,134 C732,134 728,62 786,62" />
+      <path id="e-rr" class="edge async" d="M675,143 L786,143" />
+      <path id="e-rn" class="edge async" d="M675,152 C732,152 728,226 786,226" />
+      <path id="e-al" class="edge etl" d="M545,262 C512,262 520,224 494,224" />
+      <text id="l-sl" class="edge-label" x="420" y="15">reglamento (posiciones)</text>
+      <text id="l-fl" class="edge-label" x="222" y="72">reglamento</text>
+      <text id="l-ft" class="edge-label" x="230" y="150">equipos</text>
+      <text id="l-tl" class="edge-label" x="104" y="146">age_range</text>
+      <text id="l-fr" class="edge-label" x="500" y="104">fixture.published</text>
+      <text id="l-lr" class="edge-label" x="500" y="190">match.*</text>
+      <text id="l-rs" class="edge-label" x="694" y="86">acta</text>
+      <text id="l-rr" class="edge-label" x="694" y="138">asignación</text>
+      <text id="l-rn" class="edge-label" x="694" y="206">avisos</text>
+      <text id="l-al" class="edge-label" x="420" y="266">ETL réplicas</text>
 
-      <g class="node" id="n-league" transform="translate(20,20)">
-        <rect width="200" height="70" rx="9"/>
-        <circle class="dot" cx="184" cy="49" r="6"/>
-        <text class="name" x="14" y="31">League Service</text>
-        <text class="meta" x="14" y="53">puerto 3003, league_db</text>
+      <g class="node" id="n-league" transform="translate(20,48)">
+        <rect width="190" height="64" rx="9"/><circle class="dot" cx="174" cy="44" r="6"/>
+        <text class="name" x="14" y="29">League Service</text><text class="meta" x="14" y="50">:3003 · league_db</text>
       </g>
-      <g class="node" id="n-team" transform="translate(20,140)">
-        <rect width="200" height="70" rx="9"/>
-        <circle class="dot" cx="184" cy="49" r="6"/>
-        <text class="name" x="14" y="31">Team Service</text>
-        <text class="meta" x="14" y="53">puerto 3004, team_db</text>
+      <g class="node" id="n-team" transform="translate(20,168)">
+        <rect width="190" height="64" rx="9"/><circle class="dot" cx="174" cy="44" r="6"/>
+        <text class="name" x="14" y="29">Team Service</text><text class="meta" x="14" y="50">:3004 · team_db</text>
       </g>
-      <g class="node" id="n-fixture" transform="translate(360,80)">
-        <rect width="200" height="70" rx="9"/>
-        <circle class="dot" cx="184" cy="49" r="6"/>
-        <text class="name" x="14" y="31">Fixture Service</text>
-        <text class="meta" x="14" y="53">puerto 3001, fixture_db</text>
+      <g class="node" id="n-fixture" transform="translate(300,48)">
+        <rect width="190" height="64" rx="9"/><circle class="dot" cx="174" cy="44" r="6"/>
+        <text class="name" x="14" y="29">Fixture Service</text><text class="meta" x="14" y="50">:3001 · fixture_db</text>
       </g>
-      <g class="node redis" id="n-redis" transform="translate(604,95)">
-        <rect width="142" height="40" rx="9"/>
-        <text class="name" x="71" y="26" text-anchor="middle" style="font-size:14px">Redis Pub/Sub</text>
+      <g class="node" id="n-liveScore" transform="translate(300,168)">
+        <rect width="190" height="64" rx="9"/><circle class="dot" cx="174" cy="44" r="6"/>
+        <text class="name" x="14" y="29">Live Score Service</text><text class="meta" x="14" y="50">:3005 · WebSocket</text>
       </g>
-      <g class="node" id="n-referee" transform="translate(790,80)">
-        <rect width="200" height="70" rx="9"/>
-        <circle class="dot" cx="184" cy="49" r="6"/>
-        <text class="name" x="14" y="31">Referee Service</text>
-        <text class="meta" x="14" y="53">puerto 3002, referee_db</text>
+      <g class="node redis" id="n-redis" transform="translate(545,122)">
+        <rect width="130" height="42" rx="9"/>
+        <text class="name" x="65" y="27" text-anchor="middle" style="font-size:15px">Redis Pub/Sub</text>
+      </g>
+      <g class="node" id="n-statistics" transform="translate(790,30)">
+        <rect width="190" height="64" rx="9"/><circle class="dot" cx="174" cy="44" r="6"/>
+        <text class="name" x="14" y="29">Statistics Service</text><text class="meta" x="14" y="50">:3006 · posiciones</text>
+      </g>
+      <g class="node" id="n-referee" transform="translate(790,111)">
+        <rect width="190" height="64" rx="9"/><circle class="dot" cx="174" cy="44" r="6"/>
+        <text class="name" x="14" y="29">Referee Service</text><text class="meta" x="14" y="50">:3002 · referee_db</text>
+      </g>
+      <g class="node" id="n-notification" transform="translate(790,194)">
+        <rect width="190" height="64" rx="9"/><circle class="dot" cx="174" cy="44" r="6"/>
+        <text class="name" x="14" y="29">Notification Service</text><text class="meta" x="14" y="50">:3007 · avisos</text>
+      </g>
+      <g class="node" id="n-analytics" transform="translate(545,240)">
+        <rect width="190" height="44" rx="9"/><circle class="dot" cx="174" cy="22" r="6"/>
+        <text class="name" x="14" y="28" style="font-size:17px">Analytics Service</text>
+      </g>
+      <g class="node gateway" id="n-gateway" transform="translate(20,294)">
+        <rect width="510" height="32" rx="9"/><circle class="dot" cx="494" cy="16" r="6"/>
+        <text class="meta" x="14" y="21" style="fill:#eaf2ec">API Gateway :8080 · JWT, roles, rate limiting y logs de cada petición</text>
       </g>
     </svg>
     <div class="legend">
       <span class="l-sync">Llamada síncrona (REST) entre servicios</span>
       <span class="l-async">Evento asíncrono (Redis Pub/Sub)</span>
+      <span class="l-etl">ETL por lotes</span>
       <span class="l-dot">Servicio activo (rojo si no responde)</span>
     </div>
   </div>
@@ -228,9 +273,9 @@
       <div><label for="lg-sport">Deporte</label><select id="lg-sport"><option>futbol</option><option>basquet</option><option>voley</option></select></div>
     </div></fieldset>
     <fieldset><legend class="sub">Temporada</legend><div class="grid">
-      <div><label for="ss-year">Año</label><input id="ss-year" type="number" value="2026" /></div>
-      <div><label for="ss-start">Inicio</label><input id="ss-start" type="date" value="2026-10-01" /></div>
-      <div><label for="ss-end">Fin</label><input id="ss-end" type="date" value="2027-02-28" /></div>
+      <div><label for="ss-year">Año</label><input id="ss-year" type="number" /></div>
+      <div><label for="ss-start">Inicio</label><input id="ss-start" type="date" /></div>
+      <div><label for="ss-end">Fin</label><input id="ss-end" type="date" /></div>
     </div></fieldset>
     <fieldset><legend class="sub">Categoría y reglamento</legend><div class="grid">
       <div><label for="ct-name">Categoría</label><input id="ct-name" value="Sub-17" /></div>
@@ -253,12 +298,14 @@ Tigres United
 Leones del Sur
 Aguilas Doradas</textarea></div>
       <div><label for="tm-cat">Id de categoría</label><input id="tm-cat" type="number" /></div>
+      <div style="align-self:end"><label class="check"><input id="tm-players" type="checkbox" checked /> Fichar 2 jugadores por equipo</label></div>
     </div></fieldset>
     <div class="actions"><button onclick="guard(this, createTeams)">Registrar equipos</button></div>
     <fieldset><legend class="sub">Fichar jugador</legend><div class="grid">
       <div><label for="pl-team">Equipo</label><select id="pl-team"><option value="">Registra equipos primero</option></select></div>
-      <div><label for="pl-birth">Fecha de nacimiento</label><input id="pl-birth" type="date" value="2010-05-14" /></div>
-      <div><label for="pl-jersey">Camiseta</label><input id="pl-jersey" type="number" value="10" /></div>
+      <div><label for="pl-name">Nombre</label><input id="pl-name" value="Mayor de edad" /></div>
+      <div><label for="pl-birth">Fecha de nacimiento</label><input id="pl-birth" type="date" value="2005-03-02" /></div>
+      <div><label for="pl-jersey">Camiseta</label><input id="pl-jersey" type="number" value="7" /></div>
     </div></fieldset>
     <div class="actions">
       <button onclick="guard(this, addPlayer)">Fichar jugador</button>
@@ -294,7 +341,7 @@ Aguilas Doradas</textarea></div>
       <div><label for="fx-cat">Id de categoría</label><input id="fx-cat" type="number" /></div>
       <div><label for="fx-zone">Zona</label><input id="fx-zone" value="monteria-norte" /></div>
       <div><label for="fx-teams">Ids de equipos</label><input id="fx-teams" placeholder="ej: 1,2,3,4" /></div>
-      <div><label for="fx-start">Primera jornada</label><input id="fx-start" type="date" value="2026-10-03" oninput="showWeekday()" /><div class="hint" id="fx-weekday"></div></div>
+      <div><label for="fx-start">Primera jornada</label><input id="fx-start" type="date" oninput="showWeekday()" /><div class="hint" id="fx-weekday"></div></div>
       <div style="grid-column:1/-1"><label for="fx-venues">Canchas disponibles (separadas por coma)</label><input id="fx-venues" value="Cancha Municipal 1, Cancha Municipal 2" /></div>
     </div>
     <div class="actions">
@@ -318,6 +365,39 @@ Aguilas Doradas</textarea></div>
     <div class="result" id="res-assign"></div>
   </section>
 
+  <!-- ===================== 6. EN VIVO ===================== -->
+  <section class="step" id="step-live">
+    <div class="step-head"><span class="step-num">6</span><div><h2>Partido en vivo</h2><span class="svc">Live Score Service</span></div></div>
+    <p class="desc">Cada evento publica <code>match.event</code>: el Fixture marca el partido en curso y los espectadores ven el marcador por WebSocket. Al finalizar se publica <code>match.completed</code> con el acta.</p>
+    <div class="grid">
+      <div style="grid-column:span 2"><label for="lv-match">Partido</label><select id="lv-match"><option value="">Genera el calendario primero</option></select></div>
+      <div><label for="lv-minute">Minuto</label><input id="lv-minute" type="number" min="0" max="130" value="10" /></div>
+    </div>
+    <div class="actions">
+      <button onclick="guard(this, () => liveEvent('gol', 'home'))">Gol local</button>
+      <button onclick="guard(this, () => liveEvent('gol', 'away'))">Gol visitante</button>
+      <button class="secondary" onclick="guard(this, () => liveEvent('tarjeta_amarilla', 'away'))">Amarilla visitante</button>
+      <button class="big" onclick="guard(this, completeMatch)">Finalizar partido</button>
+    </div>
+    <div class="result" id="res-live"></div>
+  </section>
+
+  <!-- ===================== 7. POSICIONES Y AVISOS ===================== -->
+  <section class="step" id="step-stats">
+    <div class="step-head"><span class="step-num">7</span><div><h2>Posiciones y avisos</h2><span class="svc">Statistics y Notification Service</span></div></div>
+    <p class="desc">Con el acta, el Statistics Service consulta el reglamento al League Service y recalcula la tabla (idempotente). El Notification Service avisa el resultado.</p>
+    <div class="actions"><button onclick="guard(this, loadStandings)">Ver tabla, goleadores y avisos</button></div>
+    <div class="result" id="res-stats"></div>
+  </section>
+
+  <!-- ===================== 8. ANALITICA ===================== -->
+  <section class="step wide" id="step-analytics">
+    <div class="step-head"><span class="step-num">8</span><div><h2>Analítica</h2><span class="svc">Analytics Service</span></div></div>
+    <p class="desc">El ETL lee réplicas de solo lectura de Fixture, Live Score y Statistics y calcula los KPIs de la liga, sin cargar las bases operativas.</p>
+    <div class="actions"><button onclick="guard(this, runEtl)">Ejecutar ETL y ver indicadores</button></div>
+    <div class="result" id="res-analytics"></div>
+  </section>
+
   <!-- ===================== REGISTRO ===================== -->
   <section class="log">
     <div class="log-head"><h2>Registro de llamadas</h2><button class="secondary small" onclick="clearLog()">Limpiar</button></div>
@@ -326,30 +406,23 @@ Aguilas Doradas</textarea></div>
 </main>
 
 <script>
-// Local (docker compose): localhost. Publicado en Vercel: /api/config entrega las URLs de Render.
-let URLS = {
-  fixture: 'http://localhost:3001/api/v1',
-  referee: 'http://localhost:3002/api/v1',
-  league:  'http://localhost:3003/api/v1',
-  team:    'http://localhost:3004/api/v1',
-};
-let ENV_LABEL = 'local (docker compose)';
+// Local (docker compose): el gateway en localhost:8080. Publicado en Vercel: /api/config entrega su URL.
+let GATEWAY = 'http://localhost:8080';
+let TOKEN = null;
 async function loadConfig() {
   if (location.protocol === 'file:') return;
   try {
     const r = await fetch('/api/config');
-    if (!r.ok) return;
-    const c = await r.json();
-    if (c.fixture && c.referee && c.league && c.team) {
-      URLS = { fixture: c.fixture + '/api/v1', referee: c.referee + '/api/v1', league: c.league + '/api/v1', team: c.team + '/api/v1' };
-      ENV_LABEL = c.label || 'Render';
-    }
+    if (r.ok) { const c = await r.json(); if (c.gateway) GATEWAY = c.gateway; }
   } catch { /* sin /api/config: se queda en local */ }
 }
-const NAMES = { fixture: 'Fixture Service', referee: 'Referee Service', league: 'League Service', team: 'Team Service' };
+const NAMES = {
+  gateway: 'API Gateway', fixture: 'Fixture Service', referee: 'Referee Service', league: 'League Service', team: 'Team Service',
+  liveScore: 'Live Score Service', statistics: 'Statistics Service', notification: 'Notification Service', analytics: 'Analytics Service',
+};
 const DAYS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const DAY_LABELS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-const state = { leagueId: null, seasonId: null, categoryId: null, teams: [], referees: [], matches: [] };
+const state = { leagueId: null, seasonId: null, categoryId: null, teams: [], players: {}, referees: [], matches: [], userId: null };
 const $ = (id) => document.getElementById(id);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -358,6 +431,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const teamName = (id) => (state.teams.find((t) => t.id === id) || {}).name || `Equipo ${id}`;
 const utcDate = (iso) => new Date(iso).toISOString().slice(0, 10);
 const utcDay = (iso) => DAY_LABELS[new Date(iso).getUTCDay()];
+const isoDay = (offset = 0) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10); };
 
 /* ---------- Registro de llamadas ---------- */
 function log(title, kind, payload) {
@@ -370,19 +444,38 @@ function log(title, kind, payload) {
 }
 function clearLog() { $('log').innerHTML = '<p class="empty">Aquí aparece cada petición con su respuesta en JSON.</p>'; }
 
-/* ---------- Llamadas HTTP ---------- */
+/* ---------- Sesion del organizador (JWT del API Gateway) ---------- */
+async function loginOrganizer() {
+  const r = await fetch(GATEWAY + '/api/v1/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: $('lg-email').value, password: $('lg-pass').value }),
+  }).catch(() => null);
+  if (!r) throw new Error('No hay conexión con el API Gateway. Revisa que docker compose up esté corriendo.');
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { $('session-status').textContent = 'No se pudo iniciar sesión: ' + (data.message || r.status); throw new Error(data.message || 'Login fallido'); }
+  TOKEN = data.accessToken;
+  state.userId = data.user.id;
+  $('session-status').textContent = `Sesión: ${data.user.name} (${data.user.role}). El gateway valida el JWT en cada petición.`;
+  log('POST /auth/login (API Gateway)', 'sync', { user: data.user, accessToken: data.accessToken.slice(0, 24) + '…' });
+}
+
+/* ---------- Llamadas HTTP: todas pasan por el API Gateway ---------- */
 async function api(service, method, path, body, kind = 'sync') {
+  if (!TOKEN) await loginOrganizer();
   const title = `${method} ${path} (${NAMES[service]})`;
+  const send = () => fetch(GATEWAY + '/api/v1' + path, {
+    method,
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), Authorization: 'Bearer ' + TOKEN },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  lightGateway();
   let res;
   try {
-    res = await fetch(URLS[service] + path, {
-      method,
-      headers: body ? { 'Content-Type': 'application/json' } : {},
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    res = await send();
+    if (res.status === 401) { await loginOrganizer(); res = await send(); } // el access token vence a los 15 min
   } catch (e) {
     log(title, 'error', { error: 'Sin conexión', ayuda: 'Revisa que docker compose up esté corriendo' });
-    throw new Error(`No hay conexión con ${NAMES[service]}. Revisa que docker compose up esté corriendo.`);
+    throw new Error('No hay conexión con el API Gateway. Revisa que docker compose up esté corriendo.');
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -404,15 +497,16 @@ async function guard(btn, fn) {
 }
 
 /* ---------- Diagrama ---------- */
-const EDGE_LABEL = { 'e-fl': 'l-fl', 'e-ft': 'l-ft', 'e-tl': 'l-tl', 'e-fr': 'l-fr', 'e-rr': 'l-fr' };
+const EDGE_LABEL = { 'e-sl': 'l-sl', 'e-fl': 'l-fl', 'e-ft': 'l-ft', 'e-tl': 'l-tl', 'e-fr': 'l-fr', 'e-lr': 'l-lr', 'e-rs': 'l-rs', 'e-rr': 'l-rr', 'e-rn': 'l-rn', 'e-al': 'l-al' };
 const EDGE_NODES = {
-  'e-fl': ['n-fixture', 'n-league'], 'e-ft': ['n-fixture', 'n-team'], 'e-tl': ['n-team', 'n-league'],
-  'e-fr': ['n-fixture', 'n-redis'], 'e-rr': ['n-redis', 'n-referee'],
+  'e-sl': ['n-statistics', 'n-league'], 'e-fl': ['n-fixture', 'n-league'], 'e-ft': ['n-fixture', 'n-team'], 'e-tl': ['n-team', 'n-league'],
+  'e-fr': ['n-fixture', 'n-redis'], 'e-lr': ['n-liveScore', 'n-redis'], 'e-rs': ['n-redis', 'n-statistics'],
+  'e-rr': ['n-redis', 'n-referee'], 'e-rn': ['n-redis', 'n-notification'], 'e-al': ['n-analytics', 'n-liveScore'],
 };
 function pulse(edges, ms = 2200) {
   for (const id of edges) {
     const edge = $(id), label = $(EDGE_LABEL[id]);
-    const kind = edge.classList.contains('async') ? 'async' : 'sync';
+    const kind = edge.classList.contains('async') ? 'async' : edge.classList.contains('etl') ? 'etl' : 'sync';
     edge.classList.add('active');
     label.classList.add('active-' + kind);
     EDGE_NODES[id].forEach((n) => $(n).classList.add('lit'));
@@ -423,26 +517,30 @@ function pulse(edges, ms = 2200) {
     }, ms);
   }
 }
+let gatewayTimer;
+function lightGateway() {
+  $('n-gateway').classList.add('lit');
+  clearTimeout(gatewayTimer);
+  gatewayTimer = setTimeout(() => $('n-gateway').classList.remove('lit'), 600);
+}
 
-/* ---------- Salud de los servicios ---------- */
+/* ---------- Salud de los servicios (a traves del gateway) ---------- */
 // En Render gratis un servicio dormido tarda cerca de un minuto en despertar;
 // estas consultas periodicas lo despiertan y lo mantienen activo mientras el panel este abierto.
 let healthRunning = false;
 async function checkHealth() {
   if (healthRunning) return;
   healthRunning = true;
-  await Promise.all(Object.keys(URLS).map(async (s) => {
-    const node = $('n-' + s);
-    try {
-      const r = await fetch(URLS[s] + '/health', { signal: AbortSignal.timeout(70000) });
-      const d = await r.json();
-      node.classList.toggle('up', d.status === 'ok');
-      node.classList.toggle('down', d.status !== 'ok');
-    } catch { node.classList.remove('up'); node.classList.add('down'); }
-  }));
+  const mark = (key, ok) => { const n = $('n-' + key); if (n) { n.classList.toggle('up', ok); n.classList.toggle('down', !ok); } };
+  try {
+    const r = await fetch(GATEWAY + '/api/v1/health/services', { signal: AbortSignal.timeout(70000) });
+    const d = await r.json();
+    mark('gateway', d.gateway.status === 'ok');
+    d.services.forEach((s) => mark(s.key, s.status === 'ok'));
+  } catch { Object.keys(NAMES).forEach((k) => mark(k, false)); }
   healthRunning = false;
   const down = document.querySelectorAll('.node.down').length;
-  $('env').textContent = `Conectado a: ${ENV_LABEL}` + (down ? `. ${down} servicio(s) sin responder; en Render gratis tardan cerca de un minuto en despertar.` : '');
+  $('env').textContent = `API Gateway: ${GATEWAY}` + (down ? `. ${down} servicio(s) sin responder; en Render gratis tardan cerca de un minuto en despertar.` : '');
 }
 
 /* ---------- Paso 1: League ---------- */
@@ -472,6 +570,7 @@ function refreshTeamSelects() {
   $('pl-team').innerHTML = state.teams.map((t) => `<option value="${t.id}">#${t.id} ${esc(t.name)}</option>`).join('') || '<option value="">Registra equipos primero</option>';
   $('fx-teams').value = state.teams.map((t) => t.id).join(',');
 }
+function birthForAge(age) { const d = new Date(); d.setFullYear(d.getFullYear() - age); d.setDate(d.getDate() - 40); return d.toISOString().slice(0, 10); }
 
 async function createTeams() {
   try {
@@ -479,10 +578,23 @@ async function createTeams() {
     const categoryId = Number($('tm-cat').value);
     if (!categoryId) throw new Error('Indica el id de la categoría (se crea en el paso 1).');
     const created = [];
-    for (const name of names) created.push(await api('team', 'POST', '/teams', { name, categoryId }));
+    state.players = {};
+    for (const name of names) {
+      const team = await api('team', 'POST', '/teams', { name, categoryId });
+      created.push(team);
+      if ($('tm-players').checked) {
+        pulse(['e-tl']);
+        state.players[team.id] = [];
+        for (const [i, jersey] of [9, 10].entries()) {
+          state.players[team.id].push(await api('team', 'POST', `/teams/${team.id}/players`, {
+            name: `${['Delantero', 'Volante'][i]} de ${name}`, birthDate: birthForAge(16), jerseyNumber: jersey,
+          }));
+        }
+      }
+    }
     state.teams = created; // el calendario usa los equipos de esta tanda
     refreshTeamSelects();
-    show('res-team', `<div class="box sync"><strong class="tag">${created.length} equipo(s) guardados en team_db</strong>${created.map((t) => `#${t.id} ${esc(t.name)}`).join('<br>')}</div>`);
+    show('res-team', `<div class="box sync"><strong class="tag">${created.length} equipo(s) guardados en team_db</strong>${created.map((t) => `#${t.id} ${esc(t.name)}${state.players[t.id] ? ', 2 jugadores elegibles' : ''}`).join('<br>')}</div>`);
   } catch (e) { showError('res-team', e); throw e; }
 }
 
@@ -491,14 +603,14 @@ async function addPlayer() {
     const teamId = Number($('pl-team').value);
     if (!teamId) throw new Error('Registra y elige un equipo.');
     pulse(['e-tl']);
-    const p = await api('team', 'POST', `/teams/${teamId}/players`, { birthDate: $('pl-birth').value, jerseyNumber: Number($('pl-jersey').value) });
+    const p = await api('team', 'POST', `/teams/${teamId}/players`, { name: $('pl-name').value, birthDate: $('pl-birth').value, jerseyNumber: Number($('pl-jersey').value) });
     const text = {
       elegible: 'Elegible: su edad está dentro del rango de la categoría.',
       no_elegible: 'No elegible: su edad está fuera del rango de la categoría.',
       pendiente: 'Pendiente: el League Service no respondió; se puede verificar después.',
     }[p.eligibilityStatus];
     show('res-team', `<div class="box sync"><strong class="tag">Síncrono: Team Service consultó el age_range al League Service</strong>
-      Jugador #${p.id} (camiseta ${p.jerseyNumber}) en ${esc(teamName(teamId))}: <span class="badge ${p.eligibilityStatus}">${p.eligibilityStatus}</span><br>${text}</div>`);
+      ${esc(p.name)} (camiseta ${p.jerseyNumber}) en ${esc(teamName(teamId))}: <span class="badge ${p.eligibilityStatus}">${p.eligibilityStatus}</span><br>${text}</div>`);
     $('pl-jersey').value = Number($('pl-jersey').value) + 1;
   } catch (e) { showError('res-team', e); throw e; }
 }
@@ -510,7 +622,7 @@ async function loadPlayers() {
     const players = await api('team', 'GET', `/teams/${teamId}/players`);
     if (!players.length) { show('res-team', `<p class="empty">${esc(teamName(teamId))} todavía no tiene jugadores. Ficha uno con el botón de arriba.</p>`); return; }
     show('res-team', `<div class="table-wrap"><table><tr><th>Jugador</th><th>Camiseta</th><th>Nacimiento</th><th>Elegibilidad</th><th></th></tr>
-      ${players.map((p) => `<tr><td>#${p.id}</td><td>${p.jerseyNumber}</td><td>${utcDate(p.birthDate)}</td>
+      ${players.map((p) => `<tr><td>${esc(p.name || '#' + p.id)}</td><td>${p.jerseyNumber}</td><td>${utcDate(p.birthDate)}</td>
       <td><span class="badge ${p.eligibilityStatus}">${p.eligibilityStatus}</span></td>
       <td><button class="secondary small" onclick="guard(this, () => verifyPlayer(${p.id}))">Verificar de nuevo</button></td></tr>`).join('')}</table></div>`);
   } catch (e) { showError('res-team', e); throw e; }
@@ -526,7 +638,7 @@ async function verifyPlayer(id) {
 
 /* ---------- Paso 3: Referee ---------- */
 function renderDays() {
-  $('rf-days').innerHTML = DAYS.map((d, i) => `<label><input type="checkbox" value="${d}" ${i === 0 || i === 6 ? 'checked' : ''}/> ${DAY_LABELS[i]}</label>`).join('');
+  $('rf-days').innerHTML = DAYS.map((d, i) => `<label><input type="checkbox" value="${d}" checked/> ${DAY_LABELS[i]}</label>`).join('');
 }
 const checkedDays = () => [...document.querySelectorAll('#rf-days input:checked')].map((c) => c.value);
 function refreshRefereeSelect() {
@@ -567,10 +679,15 @@ function matchesTable(matches) {
   dates.forEach((d, i) => {
     html += `<tr class="jornada"><td colspan="5">Jornada ${i + 1}: ${d} (${utcDay(d)})</td></tr>`;
     for (const m of matches.filter((x) => utcDate(x.scheduledAt) === d)) {
-      html += `<tr><td>#${m.id}</td><td>${esc(teamName(m.homeTeam))}</td><td>${esc(teamName(m.awayTeam))}</td><td>${esc(m.venue)}</td><td>${esc(m.status)}</td></tr>`;
+      html += `<tr><td>#${m.id}</td><td>${esc(teamName(m.homeTeam))}</td><td>${esc(teamName(m.awayTeam))}</td><td>${esc(m.venue)}</td><td><span class="badge ${m.status}">${esc(m.status)}</span></td></tr>`;
     }
   });
   return html + '</table></div>';
+}
+
+function refreshLiveSelect() {
+  $('lv-match').innerHTML = state.matches.map((m) => `<option value="${m.id}">#${m.id} ${esc(teamName(m.homeTeam))} vs ${esc(teamName(m.awayTeam))}, ${utcDate(m.scheduledAt)}</option>`).join('')
+    || '<option value="">Genera el calendario primero</option>';
 }
 
 async function generateFixture() {
@@ -586,8 +703,9 @@ async function generateFixture() {
     };
     pulse(['e-fl', 'e-ft']);
     const r = await api('fixture', 'POST', `/seasons/${seasonId}/fixtures/generate`, body);
-    pulse(['e-fr', 'e-rr'], 2800);
+    pulse(['e-fr', 'e-rr', 'e-rs', 'e-rn'], 2800);
     state.matches = r.matches;
+    refreshLiveSelect();
     const rl = r.reglamento;
     show('res-fixture', `
       <div class="box sync"><strong class="tag">Síncrono: reglamento leído del League Service</strong>
@@ -595,7 +713,7 @@ async function generateFixture() {
       <div class="box sync"><strong class="tag">Síncrono: equipos validados en el Team Service</strong>
         ${r.equiposValidados.map((t) => `#${t.id} ${esc(t.name)}`).join(', ')}</div>
       <div class="box async"><strong class="tag">Asíncrono: ${r.totalJornadas} evento(s) fixture.published enviados</strong>
-        ${r.totalMatches} partidos en ${r.totalJornadas} jornadas. El Referee Service asigna los árbitros por su cuenta (paso 5).</div>
+        ${r.totalMatches} partidos en ${r.totalJornadas} jornadas. El Referee Service asigna árbitros, el Statistics Service arma la tabla en cero y el Notification Service avisa los horarios.</div>
       ${matchesTable(r.matches)}`);
     await sleep(1500);
     if (state.referees.length) await loadAllAssignments();
@@ -608,6 +726,7 @@ async function loadFixture() {
     if (!seasonId) throw new Error('Indica el id de la temporada.');
     const matches = await api('fixture', 'GET', `/fixtures/${seasonId}`);
     state.matches = matches;
+    refreshLiveSelect();
     show('res-fixture', matches.length ? matchesTable(matches) : `<p class="empty">La temporada ${seasonId} todavía no tiene calendario. Genéralo con el botón de arriba.</p>`);
   } catch (e) { showError('res-fixture', e); throw e; }
 }
@@ -616,8 +735,9 @@ async function changeVenue() {
   try {
     const id = Number($('vn-match').value);
     const m = await api('fixture', 'PUT', `/matches/${id}/venue`, { venue: $('vn-venue').value });
+    pulse(['e-rn']);
     const local = state.matches.find((x) => x.id === m.id); if (local) local.venue = m.venue;
-    show('res-venue', `<div class="box sync"><strong class="tag">Sede cambiada</strong>Partido #${m.id}, ${esc(teamName(m.homeTeam))} contra ${esc(teamName(m.awayTeam))}, ahora se juega en ${esc(m.venue)}</div>`);
+    show('res-venue', `<div class="box async"><strong class="tag">fixture.venue_changed publicado: el Notification Service avisa a los equipos</strong>Partido #${m.id}, ${esc(teamName(m.homeTeam))} contra ${esc(teamName(m.awayTeam))}, ahora se juega en ${esc(m.venue)}</div>`);
   } catch (e) { showError('res-venue', e); throw e; }
 }
 
@@ -648,29 +768,114 @@ async function confirmAssignment(id) {
   catch (e) { showError('res-assign', e); throw e; }
 }
 
+/* ---------- Paso 6: En vivo ---------- */
+function liveScoreBox(live, tag) {
+  return `<div class="box async"><strong class="tag">${tag}</strong>
+    <div class="score">${esc(teamName(live.homeTeam))} ${live.score.home} - ${live.score.away} ${esc(teamName(live.awayTeam))}
+    <small><span class="badge ${live.status}">${esc(live.status)}</span> · ${live.events.length} evento(s) · <a href="/partidos/${live.matchId}" target="_blank">abrir el marcador en vivo</a></small></div></div>`;
+}
+
+async function liveEvent(type, side) {
+  try {
+    const matchId = Number($('lv-match').value);
+    if (!matchId) throw new Error('Genera el calendario en el paso 4.');
+    const m = state.matches.find((x) => x.id === matchId);
+    const teamId = side === 'home' ? m.homeTeam : m.awayTeam;
+    const roster = state.players[teamId] || [];
+    const player = roster[(type === 'gol' ? 0 : 1) % Math.max(1, roster.length)];
+    const minute = Number($('lv-minute').value);
+    const r = await api('liveScore', 'POST', `/matches/${matchId}/events`, { type, minute, teamId, ...(player ? { playerId: player.id } : {}) }, 'async');
+    pulse(['e-lr', 'e-rs']);
+    $('lv-minute').value = Math.min(130, minute + 13);
+    const live = await api('liveScore', 'GET', `/matches/${matchId}/live`);
+    show('res-live', liveScoreBox(live, `match.event publicado: ${type} de ${esc(teamName(teamId))}${player ? ' (' + esc(player.name) + ')' : ''}, minuto ${r.event.minute}`));
+  } catch (e) { showError('res-live', e); throw e; }
+}
+
+async function completeMatch() {
+  try {
+    const matchId = Number($('lv-match').value);
+    if (!matchId) throw new Error('Genera el calendario en el paso 4.');
+    const acta = await api('liveScore', 'POST', `/matches/${matchId}/complete`, null, 'async');
+    pulse(['e-lr', 'e-rs', 'e-rn'], 2800);
+    await sleep(600);
+    pulse(['e-sl']);
+    const live = await api('liveScore', 'GET', `/matches/${matchId}/live`);
+    show('res-live', liveScoreBox(live, acta.resent ? 'Acta reenviada (idempotente: no duplica puntos)' : `match.completed publicado: acta ${acta.homeGoals} - ${acta.awayGoals} con ${acta.events.length} evento(s)`));
+  } catch (e) { showError('res-live', e); throw e; }
+}
+
+/* ---------- Paso 7: Posiciones y avisos ---------- */
+async function loadStandings() {
+  try {
+    const seasonId = Number($('fx-season').value);
+    if (!seasonId) throw new Error('Crea la temporada en el paso 1.');
+    const t = await api('statistics', 'GET', `/standings/${seasonId}`);
+    const scorers = await api('statistics', 'GET', `/top-scorers/${seasonId}`);
+    if (!state.userId) await loginOrganizer();
+    const feed = await api('notification', 'GET', `/notifications/${state.userId}`, null, 'async');
+    const playerName = (id) => Object.values(state.players).flat().find((p) => p.id === id)?.name || `Jugador ${id}`;
+    show('res-stats', `<div class="box sync"><strong class="tag">Tabla recalculada con el reglamento del League Service${t.cached ? ' (servida desde la caché de Redis)' : ''}</strong></div>
+      <div class="table-wrap"><table><tr><th>#</th><th>Equipo</th><th class="num">PJ</th><th class="num">G</th><th class="num">E</th><th class="num">P</th><th class="num">DG</th><th class="num">Pts</th></tr>
+      ${t.standings.map((s) => `<tr><td>${s.position}</td><td>${esc(teamName(s.teamId))}</td><td class="num">${s.played}</td><td class="num">${s.wins}</td><td class="num">${s.draws}</td><td class="num">${s.losses}</td><td class="num">${s.goalDifference}</td><td class="num"><b>${s.points}</b></td></tr>`).join('')}</table></div>
+      <div class="two-cols"><div><h3 style="margin-top:14px;font-size:18px">Goleadores</h3>${scorers.length ? scorers.map((s) => `${s.position}. ${esc(playerName(s.playerId))}: ${s.goals}`).join('<br>') : '<p class="empty">Sin goles en partidos finalizados.</p>'}</div>
+      <div><h3 style="margin-top:14px;font-size:18px">Últimos avisos</h3>${feed.notifications.slice(0, 5).map((n) => `<b>${esc(n.title)}</b>: ${esc(n.body)}`).join('<br>') || '<p class="empty">Sin avisos.</p>'}</div></div>`);
+  } catch (e) { showError('res-stats', e); throw e; }
+}
+
+/* ---------- Paso 8: Analitica ---------- */
+async function runEtl() {
+  try {
+    pulse(['e-al'], 2600);
+    const run = await api('analytics', 'POST', '/analytics/etl/run');
+    const s = await api('analytics', 'GET', '/analytics/summary');
+    show('res-analytics', `<div class="box sync"><strong class="tag">Corrida del ETL: ${esc(run.status)}</strong>
+      <dl class="ids"><dt>Partidos</dt><dd>${s.totalMatches} programados, ${s.played} jugados, ${s.live} en juego, ${s.suspended} suspendidos</dd>
+      <dt>Asistencia estimada</dt><dd>${s.totalAttendance} en total, ${s.averageAttendance} por partido (pico de espectadores del marcador en vivo)</dd>
+      <dt>Filas cargadas</dt><dd>${esc(JSON.stringify(run.summary.loaded))}</dd></dl>
+      ${run.errors.length ? `<p>Réplicas sin responder: ${esc(run.errors.join('; '))}</p>` : ''}
+      <p>Gráficos completos en la página <a href="/analitica" target="_blank">Analítica</a> de la web.</p></div>`);
+  } catch (e) { showError('res-analytics', e); throw e; }
+}
+
 /* ---------- Flujo completo ---------- */
 async function runAll() {
   const btn = $('run-all'), status = $('run-status');
   btn.disabled = true;
   state.referees = []; // solo los arbitros de esta corrida
   const go = async (n, text, section, fn) => {
-    status.textContent = `Paso ${n} de 5: ${text}`;
+    status.textContent = `Paso ${n} de 8: ${text}`;
     $(section).scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
     await fn();
     await sleep(900);
   };
   try {
     await go(1, 'creando liga, temporada y categoría', 'step-league', createLeagueSetup);
-    await go(2, 'registrando equipos y fichando un jugador', 'step-team', async () => { await createTeams(); await addPlayer(); });
-    await go(3, 'registrando dos árbitros', 'step-referee', async () => { await createReferee(['sabado', 'domingo']); await createReferee(['sabado']); });
+    await go(2, 'registrando equipos y fichando jugadores', 'step-team', createTeams);
+    await go(3, 'registrando dos árbitros', 'step-referee', async () => { await createReferee(DAYS); await createReferee(DAYS); });
     await go(4, 'generando el calendario', 'step-fixture', generateFixture);
     await go(5, 'consultando las asignaciones automáticas', 'step-assign', loadAllAssignments);
+    await go(6, 'jugando el primer partido en vivo', 'step-live', async () => {
+      $('lv-minute').value = 12;
+      await liveEvent('gol', 'home'); await sleep(700);
+      await liveEvent('tarjeta_amarilla', 'away'); await sleep(700);
+      await liveEvent('gol', 'away'); await sleep(700);
+      await liveEvent('gol', 'home'); await sleep(700);
+      await completeMatch();
+    });
+    await sleep(1200); // el Statistics Service procesa el acta
+    await go(7, 'consultando la tabla y los avisos', 'step-stats', loadStandings);
+    await go(8, 'ejecutando el ETL de analítica', 'step-analytics', runEtl);
     status.textContent = 'Flujo completo terminado.';
   } catch (e) {
     status.textContent = 'El flujo se detuvo. El mensaje está en el paso marcado en rojo.';
   } finally { btn.disabled = false; }
 }
 
+$('ss-year').value = new Date().getFullYear();
+$('ss-start').value = isoDay(0);
+$('ss-end').value = isoDay(150);
+$('fx-start').value = isoDay(0);
 renderDays();
 showWeekday();
 loadConfig().then(() => { checkHealth(); setInterval(checkHealth, 8000); });

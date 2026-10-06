@@ -1,15 +1,9 @@
-import { isConfigured, serviceUrl } from "@/lib/services";
+import { API_URL } from "@/lib/services";
 
-// Se evalua en cada peticion: toma las URLs de Render de las variables de entorno de Vercel.
+// Se evalua en cada peticion.
 export const dynamic = "force-dynamic";
 
-/** El panel (public/panel.html) consulta esta ruta para saber a que servicios conectarse. */
+/** El panel de pruebas (public/panel.html) consulta esta ruta para saber a que API Gateway conectarse. */
 export function GET() {
-  return Response.json({
-    fixture: serviceUrl("fixture"),
-    referee: serviceUrl("referee"),
-    league: serviceUrl("league"),
-    team: serviceUrl("team"),
-    label: isConfigured() ? "Render" : "local (docker compose)",
-  });
+  return Response.json({ gateway: API_URL });
 }

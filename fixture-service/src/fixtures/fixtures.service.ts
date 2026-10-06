@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { MatchStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisPublisherService } from '../redis/redis-publisher.service';
 import { LeagueClientService } from '../clients/league-client.service';
@@ -132,7 +133,44 @@ export class FixturesService {
   }
 
   async updateVenue(id: number, dto: UpdateVenueDto) {
-    await this.findOne(id);
-    return this.prisma.match.update({ where: { id }, data: { venue: dto.venue } });
+    const before = await this.findOne(id);
+    const match = await this.prisma.match.update({ where: { id }, data: { venue: dto.venue } });
+    if (before.venue !== match.venue) {
+      await this.publisher.publishVenueChanged({
+        matchId: match.id,
+        seasonId: match.seasonId,
+        homeTeam: match.homeTeam,
+        awayTeam: match.awayTeam,
+        venue: match.venue,
+        previousVenue: before.venue,
+        scheduledAt: match.scheduledAt.toISOString(),
+      });
+    }
+    return match;
+  }
+
+  /**
+   * Mantiene el estado del calendario (3.3: programado, en_curso, finalizado,
+   * suspendido) a partir de los eventos ASINCRONOS del Live Score Service.
+   * Idempotente: reprocesar el mismo evento deja el mismo estado.
+   */
+  async applyLiveEvent(type: string, matchId: number) {
+    switch (type) {
+      case 'match.event':
+        // El primer evento en vivo inicia el partido
+        return this.prisma.match.updateMany({
+          where: { id: matchId, status: MatchStatus.programado },
+          data: { status: MatchStatus.en_curso },
+        });
+      case 'match.completed':
+        return this.prisma.match.updateMany({ where: { id: matchId }, data: { status: MatchStatus.finalizado } });
+      case 'match.suspended':
+        return this.prisma.match.updateMany({
+          where: { id: matchId, status: { not: MatchStatus.finalizado } },
+          data: { status: MatchStatus.suspendido },
+        });
+      default:
+        return null;
+    }
   }
 }

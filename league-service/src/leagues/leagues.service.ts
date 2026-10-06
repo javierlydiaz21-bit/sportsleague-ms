@@ -11,6 +11,23 @@ export class LeaguesService {
     return this.prisma.league.create({ data: dto });
   }
 
+  private readonly withChildren = {
+    seasons: { orderBy: { year: 'desc' as const } },
+    categories: { orderBy: { id: 'asc' as const }, include: { rule: true } },
+  };
+
+  findAll() {
+    return this.prisma.league.findMany({ include: this.withChildren, orderBy: { id: 'asc' } });
+  }
+
+  async findOne(id: number) {
+    const league = await this.prisma.league.findUnique({ where: { id }, include: this.withChildren });
+    if (!league) {
+      throw new NotFoundException(`No se encontro la liga con id ${id}`);
+    }
+    return league;
+  }
+
   async createSeason(leagueId: number, dto: CreateSeasonDto) {
     const league = await this.prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) {

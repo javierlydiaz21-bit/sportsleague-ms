@@ -2,6 +2,8 @@
 // Tablas y columnas exactamente como estan definidas en el documento:
 //   teams(id, name, category_id)
 //   players(id, team_id, birth_date, eligibility_status, jersey_number)
+// + columna players.name: el documento (3.8) consulta al Team Service la
+//   "informacion adicional del jugador (nombre, equipo)".
 
 generator client {
   provider      = "prisma-client-js"
@@ -36,6 +38,7 @@ model Team {
 model Player {
   id                Int               @id @default(autoincrement())
   teamId            Int               @map("team_id")
+  name              String?
   birthDate         DateTime          @map("birth_date") @db.Date // obligatorio
   eligibilityStatus EligibilityStatus @map("eligibility_status") // obligatorio
   jerseyNumber      Int               @map("jersey_number")

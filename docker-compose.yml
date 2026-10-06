@@ -1,18 +1,29 @@
-version: '3.9'
+# SportsLeague — entorno completo con Docker.
+#   docker compose up --build                 los 9 servicios, sus bases de datos y Redis
+#   docker compose --profile observability up --build   ademas Prometheus y Grafana
+# Los clientes (frontend, apps) solo usan el API Gateway: http://localhost:8080
+# Los puertos de cada microservicio se publican solo para pruebas y su /docs.
+
+x-postgres-health: &postgres-health
+  interval: 5s
+  timeout: 3s
+  retries: 10
+
 services:
   redis:
     image: redis:7-alpine
     container_name: sportsleague-redis
     ports:
-    - 6379:6379
+      - 6379:6379
     healthcheck:
-      test:
-      - CMD
-      - redis-cli
-      - ping
+      test: [CMD, redis-cli, ping]
       interval: 5s
       timeout: 3s
       retries: 5
+
+  # ---------------------------------------------------------------
+  # Una base de datos PostgreSQL por servicio (Database per Service)
+  # ---------------------------------------------------------------
   fixture-db:
     image: postgres:16-alpine
     container_name: sportsleague-fixture-db
@@ -21,16 +32,13 @@ services:
       POSTGRES_PASSWORD: fixture_pass
       POSTGRES_DB: fixture_db
     volumes:
-    - fixture_db_data:/var/lib/postgresql/data
+      - fixture_db_data:/var/lib/postgresql/data
     ports:
-    - 5433:5432
+      - 5433:5432
     healthcheck:
-      test:
-      - CMD-SHELL
-      - pg_isready -U fixture_user -d fixture_db
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      test: [CMD-SHELL, pg_isready -U fixture_user -d fixture_db]
+      <<: *postgres-health
+
   referee-db:
     image: postgres:16-alpine
     container_name: sportsleague-referee-db
@@ -39,16 +47,13 @@ services:
       POSTGRES_PASSWORD: referee_pass
       POSTGRES_DB: referee_db
     volumes:
-    - referee_db_data:/var/lib/postgresql/data
+      - referee_db_data:/var/lib/postgresql/data
     ports:
-    - 5434:5432
+      - 5434:5432
     healthcheck:
-      test:
-      - CMD-SHELL
-      - pg_isready -U referee_user -d referee_db
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      test: [CMD-SHELL, pg_isready -U referee_user -d referee_db]
+      <<: *postgres-health
+
   league-db:
     image: postgres:16-alpine
     container_name: sportsleague-league-db
@@ -57,16 +62,13 @@ services:
       POSTGRES_PASSWORD: league_pass
       POSTGRES_DB: league_db
     volumes:
-    - league_db_data:/var/lib/postgresql/data
+      - league_db_data:/var/lib/postgresql/data
     ports:
-    - 5435:5432
+      - 5435:5432
     healthcheck:
-      test:
-      - CMD-SHELL
-      - pg_isready -U league_user -d league_db
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      test: [CMD-SHELL, pg_isready -U league_user -d league_db]
+      <<: *postgres-health
+
   team-db:
     image: postgres:16-alpine
     container_name: sportsleague-team-db
@@ -75,16 +77,91 @@ services:
       POSTGRES_PASSWORD: team_pass
       POSTGRES_DB: team_db
     volumes:
-    - team_db_data:/var/lib/postgresql/data
+      - team_db_data:/var/lib/postgresql/data
     ports:
-    - 5436:5432
+      - 5436:5432
     healthcheck:
-      test:
-      - CMD-SHELL
-      - pg_isready -U team_user -d team_db
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      test: [CMD-SHELL, pg_isready -U team_user -d team_db]
+      <<: *postgres-health
+
+  live-score-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-live-score-db
+    environment:
+      POSTGRES_USER: live_score_user
+      POSTGRES_PASSWORD: live_score_pass
+      POSTGRES_DB: live_score_db
+    volumes:
+      - live_score_db_data:/var/lib/postgresql/data
+    ports:
+      - 5437:5432
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U live_score_user -d live_score_db]
+      <<: *postgres-health
+
+  statistics-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-statistics-db
+    environment:
+      POSTGRES_USER: statistics_user
+      POSTGRES_PASSWORD: statistics_pass
+      POSTGRES_DB: statistics_db
+    volumes:
+      - statistics_db_data:/var/lib/postgresql/data
+    ports:
+      - 5438:5432
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U statistics_user -d statistics_db]
+      <<: *postgres-health
+
+  notification-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-notification-db
+    environment:
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: notification_pass
+      POSTGRES_DB: notification_db
+    volumes:
+      - notification_db_data:/var/lib/postgresql/data
+    ports:
+      - 5439:5432
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U notification_user -d notification_db]
+      <<: *postgres-health
+
+  analytics-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-analytics-db
+    environment:
+      POSTGRES_USER: analytics_user
+      POSTGRES_PASSWORD: analytics_pass
+      POSTGRES_DB: analytics_db
+    volumes:
+      - analytics_db_data:/var/lib/postgresql/data
+    ports:
+      - 5440:5432
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U analytics_user -d analytics_db]
+      <<: *postgres-health
+
+  gateway-db:
+    image: postgres:16-alpine
+    container_name: sportsleague-gateway-db
+    environment:
+      POSTGRES_USER: gateway_user
+      POSTGRES_PASSWORD: gateway_pass
+      POSTGRES_DB: gateway_db
+    volumes:
+      - gateway_db_data:/var/lib/postgresql/data
+    ports:
+      - 5441:5432
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U gateway_user -d gateway_db]
+      <<: *postgres-health
+
+  # ---------------------------------------------------------------
+  # Microservicios
+  # ---------------------------------------------------------------
   fixture-service:
     build: ./fixture-service
     container_name: sportsleague-fixture-service
@@ -96,7 +173,7 @@ services:
       LEAGUE_SERVICE_URL: http://league-service:3003
       TEAM_SERVICE_URL: http://team-service:3004
     ports:
-    - 3001:3001
+      - 3001:3001
     depends_on:
       fixture-db:
         condition: service_healthy
@@ -106,6 +183,7 @@ services:
         condition: service_started
       team-service:
         condition: service_started
+
   referee-service:
     build: ./referee-service
     container_name: sportsleague-referee-service
@@ -115,12 +193,13 @@ services:
       DATABASE_URL: postgresql://referee_user:referee_pass@referee-db:5432/referee_db?schema=public
       REDIS_URL: redis://redis:6379
     ports:
-    - 3002:3002
+      - 3002:3002
     depends_on:
       referee-db:
         condition: service_healthy
       redis:
         condition: service_healthy
+
   league-service:
     build: ./league-service
     container_name: sportsleague-league-service
@@ -129,10 +208,11 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://league_user:league_pass@league-db:5432/league_db?schema=public
     ports:
-    - 3003:3003
+      - 3003:3003
     depends_on:
       league-db:
         condition: service_healthy
+
   team-service:
     build: ./team-service
     container_name: sportsleague-team-service
@@ -142,14 +222,172 @@ services:
       DATABASE_URL: postgresql://team_user:team_pass@team-db:5432/team_db?schema=public
       LEAGUE_SERVICE_URL: http://league-service:3003
     ports:
-    - 3004:3004
+      - 3004:3004
     depends_on:
       team-db:
         condition: service_healthy
       league-service:
         condition: service_started
+
+  live-score-service:
+    build: ./live-score-service
+    container_name: sportsleague-live-score-service
+    environment:
+      PORT: 3005
+      NODE_ENV: production
+      DATABASE_URL: postgresql://live_score_user:live_score_pass@live-score-db:5432/live_score_db?schema=public
+      REDIS_URL: redis://redis:6379
+      FIXTURE_SERVICE_URL: http://fixture-service:3001
+      TEAM_SERVICE_URL: http://team-service:3004
+      WS_ALLOWED_ORIGINS: ''
+    ports:
+      - 3005:3005
+    depends_on:
+      live-score-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  statistics-service:
+    build: ./statistics-service
+    container_name: sportsleague-statistics-service
+    environment:
+      PORT: 3006
+      NODE_ENV: production
+      DATABASE_URL: postgresql://statistics_user:statistics_pass@statistics-db:5432/statistics_db?schema=public
+      REDIS_URL: redis://redis:6379
+      LEAGUE_SERVICE_URL: http://league-service:3003
+    ports:
+      - 3006:3006
+    depends_on:
+      statistics-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-service:
+    build: ./notification-service
+    container_name: sportsleague-notification-service
+    environment:
+      PORT: 3007
+      NODE_ENV: production
+      DATABASE_URL: postgresql://notification_user:notification_pass@notification-db:5432/notification_db?schema=public
+      REDIS_URL: redis://redis:6379
+      TEAM_SERVICE_URL: http://team-service:3004
+    ports:
+      - 3007:3007
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: sportsleague-analytics-service
+    environment:
+      PORT: 3008
+      NODE_ENV: production
+      DATABASE_URL: postgresql://analytics_user:analytics_pass@analytics-db:5432/analytics_db?schema=public
+      # En produccion serian replicas de solo lectura; aqui las conexiones se abren en modo solo lectura
+      FIXTURE_REPLICA_URL: postgresql://fixture_user:fixture_pass@fixture-db:5432/fixture_db
+      LIVE_SCORE_REPLICA_URL: postgresql://live_score_user:live_score_pass@live-score-db:5432/live_score_db
+      STATISTICS_REPLICA_URL: postgresql://statistics_user:statistics_pass@statistics-db:5432/statistics_db
+      ETL_INTERVAL_SECONDS: 30
+      ATTENDANCE_FACTOR: 1
+    ports:
+      - 3008:3008
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+      fixture-db:
+        condition: service_healthy
+      live-score-db:
+        condition: service_healthy
+      statistics-db:
+        condition: service_healthy
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: sportsleague-api-gateway
+    environment:
+      PORT: 8080
+      NODE_ENV: production
+      DATABASE_URL: postgresql://gateway_user:gateway_pass@gateway-db:5432/gateway_db?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: secreto-solo-para-desarrollo-local
+      ADMIN_EMAIL: admin@sportsleague.co
+      ADMIN_PASSWORD: admin12345
+      LEAGUE_SERVICE_URL: http://league-service:3003
+      TEAM_SERVICE_URL: http://team-service:3004
+      FIXTURE_SERVICE_URL: http://fixture-service:3001
+      REFEREE_SERVICE_URL: http://referee-service:3002
+      LIVE_SCORE_SERVICE_URL: http://live-score-service:3005
+      STATISTICS_SERVICE_URL: http://statistics-service:3006
+      NOTIFICATION_SERVICE_URL: http://notification-service:3007
+      ANALYTICS_SERVICE_URL: http://analytics-service:3008
+    ports:
+      - 8080:8080
+    depends_on:
+      gateway-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      league-service:
+        condition: service_started
+      team-service:
+        condition: service_started
+      fixture-service:
+        condition: service_started
+      referee-service:
+        condition: service_started
+      live-score-service:
+        condition: service_started
+      statistics-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
+
+  # ---------------------------------------------------------------
+  # Observabilidad (documento, seccion 9): perfil opcional
+  # ---------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: sportsleague-prometheus
+    profiles: [observability]
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - 9090:9090
+    depends_on:
+      - api-gateway
+      - live-score-service
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: sportsleague-grafana
+    profiles: [observability]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - 3010:3000
+    depends_on:
+      - prometheus
+
 volumes:
-  fixture_db_data: null
-  referee_db_data: null
-  league_db_data: null
-  team_db_data: null
+  fixture_db_data:
+  referee_db_data:
+  league_db_data:
+  team_db_data:
+  live_score_db_data:
+  statistics_db_data:
+  notification_db_data:
+  analytics_db_data:
+  gateway_db_data:

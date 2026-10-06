@@ -16,6 +16,22 @@ export class RefereesController {
     return this.refereesService.create(dto);
   }
 
+  // GET /api/v1/referees — lectura de apoyo para el panel de organizadores
+  @Get()
+  @ApiOperation({ summary: 'Listar los arbitros registrados' })
+  findAll() {
+    return this.refereesService.findAll();
+  }
+
+  // GET /api/v1/referees/{id}
+  @Get(':id')
+  @ApiOperation({ summary: 'Consultar un arbitro (zona, certificaciones y disponibilidad)' })
+  @ApiParam({ name: 'id', example: 1 })
+  @ApiResponse({ status: 404, description: 'El arbitro no existe.' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.refereesService.findOne(id);
+  }
+
   // PUT /api/v1/referees/{id}/availability
   @Put(':id/availability')
   @ApiOperation({ summary: 'Declarar la disponibilidad horaria de un arbitro' })

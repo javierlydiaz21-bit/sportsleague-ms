@@ -32,11 +32,14 @@ desempate.
 Además, como en todos los servicios: `GET /api/v1/health` y
 `GET /api/v1/status` (documento, 9.3), y la documentación en `/docs`.
 
-**Único endpoint de apoyo:** `GET /api/v1/categories/{id}`. Es la consulta
-REST puntual con la que el Team Service lee el `age_range` (el documento
-dice en 3.2 que `age_range` es obligatorio *para la validación de
-elegibilidad en Team Service*, y en 3.8 que la información de otro servicio
-se obtiene con una consulta REST puntual).
+**Endpoints de apoyo:**
+
+- `GET /api/v1/categories/{id}`: la consulta REST puntual con la que el Team
+  Service lee el `age_range` (el documento dice en 3.2 que `age_range` es
+  obligatorio *para la validación de elegibilidad en Team Service*, y en 3.8
+  que la información de otro servicio se obtiene con una consulta REST puntual).
+- `GET /api/v1/leagues` y `GET /api/v1/leagues/{id}`: ligas con sus
+  temporadas, categorías y reglamento, para que la web pueda listarlas.
 
 ## Formato de `age_range`
 

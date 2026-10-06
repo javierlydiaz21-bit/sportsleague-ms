@@ -1,0 +1,65 @@
+// Live Score DB — seccion 3.5 del documento de arquitectura.
+//   match_events(match_id, type, player_id, minute, team_id)
+// + tabla live_matches: copia local de los datos del partido que el marcador
+//   necesita (equipos, temporada, categoria) y su estado en vivo. Se llena con el
+//   evento fixture.published (informacion "previamente sincronizada mediante
+//   eventos", documento 3.8) o, si el evento se perdio, con una consulta REST
+//   puntual al Fixture Service.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Restriccion (3.5): type solo admite estos cuatro valores
+enum EventType {
+  gol
+  tarjeta_amarilla
+  tarjeta_roja
+  sustitucion
+}
+
+// Mismos valores que matches.status del Fixture Service (3.3)
+enum LiveStatus {
+  programado
+  en_curso
+  finalizado
+  suspendido
+}
+
+model MatchEvent {
+  id       Int       @id @default(autoincrement())
+  matchId  Int       @map("match_id") // NOT NULL
+  type     EventType // NOT NULL
+  // Llaves foraneas conceptuales hacia Team DB (sin join fisico, 3.5 y 3.8)
+  playerId Int?      @map("player_id")
+  teamId   Int       @map("team_id")
+  minute   Int       // NOT NULL
+
+  // Indices (3.5): eventos de un partido y su linea de tiempo
+  @@index([matchId])
+  @@index([matchId, minute])
+  @@map("match_events")
+}
+
+model LiveMatch {
+  matchId          Int        @id @map("match_id")
+  seasonId         Int        @map("season_id")
+  categoryId       Int        @map("category_id")
+  homeTeam         Int        @map("home_team")
+  awayTeam         Int        @map("away_team")
+  status           LiveStatus @default(programado)
+  suspensionReason String?    @map("suspension_reason")
+  // Pico de espectadores conectados al marcador; el Analytics Service lo usa
+  // para estimar la asistencia por partido (2.8)
+  peakViewers      Int        @default(0) @map("peak_viewers")
+  completedAt      DateTime?  @map("completed_at")
+
+  @@index([status])
+  @@map("live_matches")
+}

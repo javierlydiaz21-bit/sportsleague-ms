@@ -1,81 +1,144 @@
+import Link from "next/link";
 import { connection } from "next/server";
-import { SERVICES, getJson, isConfigured, serviceUrl } from "@/lib/services";
+import { Notice, Section } from "@/components/ui";
+import { teamName, teamsById } from "@/lib/server-data";
+import { API_URL, getJson, utcDate } from "@/lib/services";
+import type { League, LiveMatch, ServiceHealth } from "@/lib/types";
+
+interface HealthReport {
+  gateway: { status: string };
+  services: ServiceHealth[];
+}
+
+const SPORT_LABEL: Record<string, string> = { futbol: "Fútbol", basquet: "Básquet", voley: "Vóley" };
 
 export default async function Home() {
-  await connection(); // el estado de los servicios se consulta en cada visita
-  const status = await Promise.all(
-    SERVICES.map(async (s) => {
-      const health = await getJson<{ status: string }>(`${serviceUrl(s.key)}/api/v1/health`);
-      return { ...s, ok: health?.status === "ok" };
-    }),
-  );
-  const down = status.filter((s) => !s.ok).length;
+  await connection(); // datos actuales en cada visita
+  const [leagues, live, health] = await Promise.all([
+    getJson<League[]>("/leagues"),
+    getJson<LiveMatch[]>("/live-matches?status=en_curso"),
+    getJson<HealthReport>("/health/services", 12000),
+  ]);
+  const teams = await teamsById((live ?? []).flatMap((m) => [m.homeTeam, m.awayTeam]));
+  const services = health ? [{ key: "gateway", name: "API Gateway", status: health.gateway.status }, ...health.services] : [];
+  const down = services.filter((s) => s.status !== "ok").length;
 
   return (
-    <main className="space-y-10">
+    <main className="space-y-8">
       <header>
-        <h1 className="font-display text-4xl font-bold">SportsLeague</h1>
-        <p className="mt-1 text-muted">Ligas deportivas amateur: calendario público y panel de organizadores.</p>
+        <h1 className="font-display text-4xl font-bold sm:text-5xl">Ligas deportivas amateur</h1>
+        <p className="mt-2 max-w-2xl text-muted">
+          Calendario de partidos, marcador en vivo y tabla de posiciones de cada temporada. Los organizadores programan
+          la liga y los árbitros registran los goles y tarjetas desde la cancha.
+        </p>
       </header>
 
-      <section aria-labelledby="estado">
-        <h2 id="estado" className="font-display text-2xl font-bold">Estado de los servicios</h2>
-        <p className="mt-1 text-sm text-muted">
-          Conectado a {isConfigured() ? "Render" : "los servicios locales (docker compose)"}.
-        </p>
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {status.map((s) => (
-            <li key={s.key} className="rounded-lg border border-line bg-surface p-4">
-              <p className="font-display text-lg font-bold">{s.name}</p>
-              <p className={`mt-1 flex items-center gap-2 text-sm ${s.ok ? "text-ok" : "text-error"}`}>
-                <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${s.ok ? "bg-ok" : "bg-error"}`} />
-                {s.ok ? "Activo" : "Sin respuesta"}
-              </p>
-            </li>
-          ))}
-        </ul>
-        {down > 0 && (
-          <p className="mt-3 text-sm text-async">
-            En el plan gratuito de Render los servicios se duermen tras 15 minutos sin uso y tardan cerca de un
-            minuto en despertar. Recarga esta página en un momento.
+      {health === null && (
+        <Notice tone="error">
+          No hay conexión con el API Gateway ({API_URL}). Si usas Docker, revisa que <code>docker compose up</code> esté
+          corriendo; en Render los servicios gratuitos tardan cerca de un minuto en despertar.
+        </Notice>
+      )}
+
+      <Section
+        id="en-vivo"
+        title="En vivo ahora"
+        description="El marcador se actualiza al instante por WebSocket mientras el árbitro registra los eventos."
+      >
+        {live && live.length > 0 ? (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {live.map((m) => (
+              <li key={m.matchId}>
+                <Link
+                  href={`/partidos/${m.matchId}`}
+                  className="block rounded-lg border border-live/50 bg-surface-2 p-4 hover:border-live"
+                >
+                  <span className="flex items-center gap-2 text-xs font-semibold text-live">
+                    <span aria-hidden className="live-dot h-2 w-2 rounded-full bg-live" /> EN VIVO
+                  </span>
+                  <span className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 font-display text-xl font-bold">
+                    <span>{teamName(teams, m.homeTeam)}</span>
+                    <span className="tabular-nums">{m.score.home}</span>
+                    <span>{teamName(teams, m.awayTeam)}</span>
+                    <span className="tabular-nums">{m.score.away}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted">No hay partidos en juego en este momento.</p>
+        )}
+      </Section>
+
+      <Section id="ligas" title="Ligas y temporadas" description="Elige una temporada para ver su calendario y posiciones.">
+        {leagues && leagues.length > 0 ? (
+          <div className="space-y-5">
+            {leagues.map((league) => (
+              <div key={league.id}>
+                <h3 className="font-display text-xl font-bold">
+                  {league.name} <span className="text-base font-semibold text-muted">· {SPORT_LABEL[league.sport] ?? league.sport}</span>
+                </h3>
+                {league.categories.length > 0 && (
+                  <p className="text-sm text-muted">
+                    Categorías: {league.categories.map((c) => `${c.name} (${c.ageRange} años)`).join(", ")}
+                  </p>
+                )}
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {league.seasons.map((s) => (
+                    <li key={s.id}>
+                      <Link
+                        href={`/temporadas/${s.id}`}
+                        className="inline-block rounded-md border border-line bg-surface-2 px-3 py-2 text-sm hover:border-sync"
+                      >
+                        <span className="font-semibold">Temporada {s.year}</span>
+                        <span className="block text-xs text-muted">
+                          {utcDate(s.startDate)} a {utcDate(s.endDate)}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                  {league.seasons.length === 0 && <li className="text-sm text-muted">Sin temporadas todavía.</li>}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted">
+            Todavía no hay ligas. Un organizador puede crearlas, o cargar datos de ejemplo, desde el{" "}
+            <Link href="/organizador" className="text-sync hover:underline">
+              panel de organizadores
+            </Link>
+            .
           </p>
         )}
-      </section>
+      </Section>
 
-      <section aria-labelledby="calendario" className="rounded-lg border border-line bg-surface p-5">
-        <h2 id="calendario" className="font-display text-2xl font-bold">Calendario de una temporada</h2>
-        <p className="mt-1 text-muted">Página pública generada en el servidor (SSR), lista para buscadores.</p>
-        <form action="/calendario" className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="text-sm text-muted">
-            Id de la temporada
-            <input
-              name="temporada"
-              type="number"
-              min={1}
-              defaultValue={1}
-              required
-              className="mt-1 block w-40 rounded-md border border-line bg-surface-2 px-3 py-2 text-ink"
-            />
-          </label>
-          <button type="submit" className="rounded-md bg-sync px-4 py-2 font-semibold text-pitch hover:brightness-110">
-            Ver calendario
-          </button>
-        </form>
-      </section>
-
-      <section aria-labelledby="panel" className="rounded-lg border border-line bg-surface p-5">
-        <h2 id="panel" className="font-display text-2xl font-bold">Panel de organizadores</h2>
-        <p className="mt-1 text-muted">
-          Crea la liga, los equipos y los árbitros, genera el calendario y mira cómo se comunican los
-          microservicios en vivo.
-        </p>
-        <a
-          href="/panel"
-          className="mt-4 inline-block rounded-md bg-async px-4 py-2 font-semibold text-pitch hover:brightness-110"
+      {health && (
+        <Section
+          id="estado"
+          title="Estado de los servicios"
+          description={
+            down > 0
+              ? `${down} servicio(s) sin responder. En el plan gratuito de Render tardan cerca de un minuto en despertar.`
+              : "Todos los microservicios responden a través del API Gateway."
+          }
         >
-          Abrir el panel
-        </a>
-      </section>
+          <ul className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {services.map((s) => (
+              <li key={s.key} className="rounded-md border border-line bg-surface-2 px-3 py-2 text-sm">
+                <span className="flex items-center gap-2">
+                  <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${s.status === "ok" ? "bg-ok" : "bg-error"}`} />
+                  <span className="font-semibold">{s.name}</span>
+                </span>
+                <span className={`text-xs ${s.status === "ok" ? "text-muted" : "text-error"}`}>
+                  {s.status === "ok" ? "Activo" : s.status === "degraded" ? "Degradado" : "Sin respuesta"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
     </main>
   );
 }

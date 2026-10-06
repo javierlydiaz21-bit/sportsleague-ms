@@ -13,7 +13,10 @@ describe('calculateAge', () => {
 
 function build(category: any) {
   const prisma: any = {
-    team: { findUnique: jest.fn().mockResolvedValue({ id: 1, name: 'Halcones FC', categoryId: 1 }) },
+    team: {
+      findUnique: jest.fn().mockResolvedValue({ id: 1, name: 'Halcones FC', categoryId: 1 }),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     player: {
       create: jest.fn(({ data }) => ({ id: 1, ...data })),
       findUnique: jest.fn(),
@@ -75,5 +78,27 @@ describe('TeamsService.addPlayer (elegibilidad por age_range del League Service)
     });
     const p = await service.verifyEligibility(1);
     expect(p.eligibilityStatus).toBe('elegible');
+  });
+});
+
+describe('TeamsService.findMany', () => {
+  it('filtra por categoria e incluye la plantilla', async () => {
+    const { service, prisma } = build(sub17);
+    await service.findMany({ categoryId: 1 });
+    expect(prisma.team.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { categoryId: 1 }, include: expect.objectContaining({ players: expect.anything() }) }),
+    );
+  });
+
+  it('filtra por lista de ids', async () => {
+    const { service, prisma } = build(sub17);
+    await service.findMany({ ids: [1, 2] });
+    expect(prisma.team.findMany.mock.calls[0][0].where).toEqual({ id: { in: [1, 2] } });
+  });
+
+  it('guarda el nombre del jugador al ficharlo', async () => {
+    const { service } = build(sub17);
+    const p = await service.addPlayer(1, { name: 'Juan Perez', birthDate: yearsAgo(16), jerseyNumber: 9 });
+    expect(p.name).toBe('Juan Perez');
   });
 });

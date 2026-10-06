@@ -11,6 +11,17 @@ export class RefereesService {
     return this.prisma.referee.create({ data: dto });
   }
 
+  findAll() {
+    return this.prisma.referee.findMany({
+      include: { _count: { select: { assignments: true } } },
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  findOne(id: number) {
+    return this.ensureExists(id);
+  }
+
   private async ensureExists(id: number) {
     const referee = await this.prisma.referee.findUnique({ where: { id } });
     if (!referee) {
