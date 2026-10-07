@@ -1,185 +1,235 @@
 "use client";
 
 import { useState } from "react";
-import { Field, Section } from "@/components/ui";
-import { utcDate } from "@/lib/services";
+import Crest from "@/components/crest";
+import { Card, EmptyCard, Field, FormMessage } from "@/components/ui";
+import { ageAt, shortDate } from "@/lib/services";
 import { api } from "@/lib/session";
 import { useAction, useApi } from "@/lib/use-api";
 import type { League, Player, Team } from "@/lib/types";
-import { ActionMessage, SubTitle, flatten } from "./shared";
+import OrganizerSection from "./panel";
+import { flatten } from "./shared";
 
-const ELIGIBILITY = {
-  elegible: { label: "Elegible", cls: "bg-ok/15 text-ok" },
-  no_elegible: { label: "No elegible", cls: "bg-error/15 text-error" },
-  pendiente: { label: "Pendiente", cls: "bg-async/15 text-async" },
-};
+const ELIGIBILITY = { elegible: "Elegible", no_elegible: "No elegible", pendiente: "Pendiente" };
 
-export default function Teams({ leagues }: { leagues: League[] }) {
+export default function TeamsSection() {
+  return <OrganizerSection id="equipos">{({ leagues }) => <Teams leagues={leagues} />}</OrganizerSection>;
+}
+
+function Teams({ leagues }: { leagues: League[] }) {
   const { categories } = flatten(leagues);
   const [categoryId, setCategoryId] = useState("");
-  const selected = categoryId || (categories[0] ? String(categories[0].id) : "");
-  const teams = useApi<Team[]>(selected ? `/teams?categoryId=${selected}` : null);
-  const { busy, message, run } = useAction();
+  const category = categories.find((c) => String(c.id) === categoryId) ?? categories[0];
+  const teams = useApi<Team[]>(category ? `/teams?categoryId=${category.id}` : null);
+  const [teamId, setTeamId] = useState<number | null>(null);
+  const list = teams.data ?? [];
+  const team = list.find((t) => t.id === teamId) ?? list[0];
 
-  const [teamName, setTeamName] = useState("");
-  const [playerTeam, setPlayerTeam] = useState("");
-  const [playerName, setPlayerName] = useState("");
-  const [birthDate, setBirthDate] = useState("2010-05-14");
-  const [jersey, setJersey] = useState("10");
-
-  const done = async (action: () => Promise<string>) => {
-    if (await run(action)) teams.reload();
-  };
-  const category = categories.find((c) => String(c.id) === selected);
+  if (!category) {
+    return (
+      <EmptyCard
+        title="Todavía no hay categorías"
+        text="Cada equipo pertenece a una categoría. Créala primero en Ligas y reglamento."
+        href="/organizador/ligas"
+        label="Ir a Ligas y reglamento"
+      />
+    );
+  }
+  const [min, max] = category.ageRange.split("-").map(Number);
+  const many = leagues.length > 1;
 
   return (
-    <Section
-      id="equipos"
-      title="Equipos y jugadores"
-      description="Team Service: al fichar un jugador se consulta el rango de edad de la categoría al League Service."
-    >
-      {categories.length === 0 ? (
-        <p className="text-sm text-muted">Crea primero una categoría.</p>
-      ) : (
-        <>
-          <Field label="Categoría">
-            <select className="field max-w-sm" value={selected} onChange={(e) => setCategoryId(e.target.value)}>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.league.name}, {c.name} ({c.ageRange} años)
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          {teams.error && <p className="mt-3 text-sm text-error">{teams.error}</p>}
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {(teams.data ?? []).map((t) => (
-              <TeamCard key={t.id} team={t} onChange={teams.reload} />
+    <>
+      <div className="toolbar">
+        <Field label="Categoría">
+          <select
+            value={category.id}
+            onChange={(e) => {
+              setCategoryId(e.target.value);
+              setTeamId(null);
+            }}
+          >
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {many ? `${c.league.name}, ` : ""}
+                {c.name} ({c.ageRange} años)
+              </option>
             ))}
-            {teams.data?.length === 0 && <p className="text-sm text-muted">Esta categoría todavía no tiene equipos.</p>}
-          </div>
+          </select>
+        </Field>
+      </div>
+      {teams.error && <p className="form-msg is-error">{teams.error}</p>}
+      <div className="split">
+        <Card title="Equipos">
+          {list.length > 0 ? (
+            <ul className="team-list">
+              {list.map((t) => (
+                <li key={t.id}>
+                  <button type="button" aria-current={t.id === team?.id} onClick={() => setTeamId(t.id)}>
+                    <Crest name={t.name} size={30} />
+                    {t.name}
+                    <small aria-label={`${t.players?.length ?? 0} jugadores`}>{t.players?.length ?? 0}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="empty">{teams.loading ? "Cargando..." : "Esta categoría todavía no tiene equipos."}</p>
+          )}
+          <NewTeam
+            categoryId={category.id}
+            categoryName={category.name}
+            onDone={(t) => {
+              setTeamId(t.id);
+              teams.reload();
+            }}
+          />
+        </Card>
 
-          <div className="mt-2 grid gap-6 md:grid-cols-2">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                done(async () => {
-                  const t = await api<Team>("POST", "/teams", { name: teamName, categoryId: Number(selected) });
-                  setTeamName("");
-                  return `Equipo ${t.name} (#${t.id}) registrado en ${category?.name}.`;
-                });
-              }}
-            >
-              <SubTitle>Registrar equipo</SubTitle>
-              <div className="mt-2 flex gap-2">
-                <input
-                  className="field mt-0 flex-1"
-                  aria-label="Nombre del equipo"
-                  placeholder="Nombre del equipo"
-                  required
-                  value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                />
-                <button className="btn btn-primary" disabled={busy}>
-                  Registrar
-                </button>
-              </div>
-            </form>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                done(async () => {
-                  const p = await api<Player>("POST", `/teams/${playerTeam}/players`, {
-                    name: playerName,
-                    birthDate,
-                    jerseyNumber: Number(jersey),
-                  });
-                  setPlayerName("");
-                  setJersey(String(Number(jersey) + 1));
-                  return `${p.name} fichado: ${ELIGIBILITY[p.eligibilityStatus].label.toLowerCase()}.`;
-                });
-              }}
-            >
-              <SubTitle>Fichar jugador</SubTitle>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <Field label="Equipo">
-                  <select className="field" required value={playerTeam} onChange={(e) => setPlayerTeam(e.target.value)}>
-                    <option value="">Elige</option>
-                    {(teams.data ?? []).map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Nombre">
-                  <input className="field" required value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
-                </Field>
-                <Field label="Nacimiento">
-                  <input className="field" type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
-                </Field>
-                <Field label="Camiseta">
-                  <input className="field" type="number" min={1} required value={jersey} onChange={(e) => setJersey(e.target.value)} />
-                </Field>
-              </div>
-              <button className="btn btn-primary mt-2" disabled={busy}>
-                Fichar
-              </button>
-            </form>
-          </div>
-          <ActionMessage message={message} />
-        </>
-      )}
-    </Section>
+        <Card
+          title={
+            team ? (
+              <>
+                <Crest name={team.name} size={40} />
+                {team.name}
+              </>
+            ) : (
+              "Plantilla"
+            )
+          }
+          actions={team && <p>{`${category.name} admite de ${min} a ${max} años`}</p>}
+        >
+          {team ? (
+            <Roster key={team.id} team={team} onChange={teams.reload} />
+          ) : (
+            <p className="empty">Registra un equipo para ver y fichar su plantilla.</p>
+          )}
+        </Card>
+      </div>
+    </>
   );
 }
 
-function TeamCard({ team, onChange }: { team: Team; onChange: () => void }) {
-  const [busy, setBusy] = useState(false);
+function NewTeam({ categoryId, categoryName, onDone }: { categoryId: number; categoryName: string; onDone: (t: Team) => void }) {
+  const { busy, message, run } = useAction();
+  const [name, setName] = useState("");
   return (
-    <div className="rounded-md border border-line bg-surface-2 p-3 text-sm">
-      <p className="font-semibold">
-        {team.name} <span className="text-muted">#{team.id}</span>
-      </p>
-      {team.players && team.players.length > 0 ? (
-        <table className="mt-2 w-full text-left">
-          <tbody>
-            {team.players.map((p) => (
-              <tr key={p.id} className="border-t border-line">
-                <td className="py-1 pr-2 tabular-nums text-muted">{p.jerseyNumber}</td>
-                <td className="py-1 pr-2">{p.name ?? "Sin nombre"}</td>
-                <td className="py-1 pr-2 text-muted">{utcDate(p.birthDate)}</td>
-                <td className="py-1 text-right">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ELIGIBILITY[p.eligibilityStatus].cls}`}>
-                    {ELIGIBILITY[p.eligibilityStatus].label}
-                  </span>
-                  {p.eligibilityStatus === "pendiente" && (
+    <form
+      className="f"
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(async () => {
+          const t = await api<Team>("POST", "/teams", { name, categoryId });
+          setName("");
+          onDone(t);
+          return `${t.name} registrado en ${categoryName}.`;
+        });
+      }}
+    >
+      <Field label={`Nuevo equipo en ${categoryName}`}>
+        <input required placeholder="Nombre del equipo" value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <div className="factions">
+        <button className="btn btn-blue" disabled={busy}>
+          Registrar equipo
+        </button>
+      </div>
+      <FormMessage message={message} />
+    </form>
+  );
+}
+
+function Roster({ team, onChange }: { team: Team; onChange: () => void }) {
+  const { busy, message, run } = useAction();
+  const players = [...(team.players ?? [])].sort((a, b) => a.jerseyNumber - b.jerseyNumber);
+  const [name, setName] = useState("");
+  const [birthDate, setBirthDate] = useState("2010-05-14");
+  const [jersey, setJersey] = useState(String(Math.max(0, ...players.map((p) => p.jerseyNumber)) + 1));
+
+  return (
+    <>
+      {players.length > 0 ? (
+        <div className="scroll">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Camiseta</th>
+                <th>Nombre</th>
+                <th className="hide-sm">Nacimiento</th>
+                <th className="num">Edad</th>
+                <th>Elegibilidad</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((p) => (
+                <tr key={p.id}>
+                  <td className="pos">#{p.jerseyNumber}</td>
+                  <td>{p.name ?? "Sin nombre"}</td>
+                  <td className="hide-sm">{shortDate(p.birthDate)}</td>
+                  <td className="num">{ageAt(p.birthDate)}</td>
+                  <td>
+                    <span className={`elig elig-${p.eligibilityStatus}`}>{ELIGIBILITY[p.eligibilityStatus]}</span>
+                  </td>
+                  <td>
                     <button
-                      className="ml-2 text-xs text-sync hover:underline"
+                      type="button"
+                      className="linkish"
                       disabled={busy}
                       onClick={async () => {
-                        setBusy(true);
-                        try {
-                          await api("PUT", `/players/${p.id}/eligibility`);
-                          onChange();
-                        } finally {
-                          setBusy(false);
-                        }
+                        const ok = await run(async () => {
+                          const r = await api<Player>("PUT", `/players/${p.id}/eligibility`);
+                          return `Jugador #${r.jerseyNumber} verificado: ${ELIGIBILITY[r.eligibilityStatus].toLowerCase()}.`;
+                        });
+                        if (ok) onChange();
                       }}
                     >
                       Verificar
                     </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <p className="mt-1 text-muted">Sin jugadores.</p>
+        <p className="empty">Todavía no tiene jugadores. Ficha el primero aquí abajo.</p>
       )}
-    </div>
+
+      <form
+        className="f"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const ok = await run(async () => {
+            const p = await api<Player>("POST", `/teams/${team.id}/players`, {
+              name,
+              birthDate,
+              jerseyNumber: Number(jersey),
+            });
+            setName("");
+            setJersey(String(Number(jersey) + 1));
+            return `${p.name} fichado en ${team.name}: ${ELIGIBILITY[p.eligibilityStatus].toLowerCase()}. Tiene ${ageAt(p.birthDate)} años.`;
+          });
+          if (ok) onChange();
+        }}
+      >
+        <h3>Fichar jugador</h3>
+        <div className="fgrid">
+          <Field label="Nombre">
+            <input required value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="Fecha de nacimiento">
+            <input type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+          </Field>
+          <Field label="Número de camiseta">
+            <input type="number" min={1} required value={jersey} onChange={(e) => setJersey(e.target.value)} />
+          </Field>
+          <button className="btn btn-blue" disabled={busy}>
+            Fichar jugador
+          </button>
+        </div>
+      </form>
+      <FormMessage message={message} />
+    </>
   );
 }

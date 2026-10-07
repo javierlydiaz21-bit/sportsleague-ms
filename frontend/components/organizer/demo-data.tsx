@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Section } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { ApiError, api } from "@/lib/session";
 import type { Category, League, Referee, Season, Team } from "@/lib/types";
 import { DAYS, addDays, today } from "./shared";
@@ -117,34 +117,31 @@ export default function DemoData({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <Section
+    <Card
       id="demo"
-      title="Datos de demostración"
-      description="Crea en un paso una liga lista para jugar: temporada, categoría, 4 equipos con jugadores, 2 árbitros con cuenta y el calendario."
+      title="Datos de ejemplo"
+      hint="Crea en un paso una liga lista para jugar: temporada, categoría, 4 equipos con jugadores, 2 árbitros con cuenta y el calendario. Después abre un partido de la jornada de hoy y registra goles."
       actions={
-        <button className="btn btn-accent" onClick={run} disabled={busy}>
+        <button type="button" className="btn btn-green" onClick={run} disabled={busy}>
           {busy ? "Creando..." : "Cargar liga de ejemplo"}
         </button>
       }
     >
-      {log.length === 0 && !error && (
-        <p className="text-sm text-muted">Útil para la presentación: después abre un partido de la jornada de hoy y registra goles.</p>
+      {log.length > 0 && (
+        <ol className="log" aria-live="polite">
+          {log.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ol>
       )}
-      <ol className="space-y-1 text-sm" aria-live="polite">
-        {log.map((line) => (
-          <li key={line} className="border-l-2 border-sync pl-3">
-            {line}
-          </li>
-        ))}
-      </ol>
-      {error && <p className="mt-3 text-sm text-error">No se pudo completar: {error}</p>}
+      {error && <p className="form-msg is-error">No se pudo completar: {error}</p>}
       {seasonId && (
-        <p className="mt-3 text-sm">
-          <Link href={`/temporadas/${seasonId}`} className="font-semibold text-sync hover:underline">
+        <p className="mt-3">
+          <Link href={`/temporadas/${seasonId}`} className="linkish">
             Ver el calendario y la tabla de la temporada
           </Link>
         </p>
       )}
-    </Section>
+    </Card>
   );
 }

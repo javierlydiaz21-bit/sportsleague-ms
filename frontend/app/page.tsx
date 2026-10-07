@@ -1,44 +1,34 @@
 import Link from "next/link";
 import { connection } from "next/server";
-import MatchRow from "@/components/match-row";
+import { Icon } from "@/components/icons";
+import { MatchTile } from "@/components/match-row";
 import StandingsTable from "@/components/standings-table";
-import { Notice } from "@/components/ui";
+import { Band, Card, Notice, Page } from "@/components/ui";
 import { Competition, MatchView, allCompetitions, dayLabel, teamsById, today } from "@/lib/server-data";
-import { getJson, utcDate } from "@/lib/services";
+import { SPORT_LABEL, cap, getJson, longDate, utcDate } from "@/lib/services";
 import type { Standings } from "@/lib/types";
-
-const SPORT_LABEL: Record<string, string> = { futbol: "Fútbol", basquet: "Básquet", voley: "Vóley" };
-
-function Trophy() {
-  return (
-    <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-async" fill="currentColor">
-      <path d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V17h3v2H8v-2h3v-2.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3V3Zm0 4H6v1a2 2 0 0 0 1.2 1.8A5 5 0 0 1 7 8.5V7Zm10 0v1.5c0 .5 0 .9-.2 1.3A2 2 0 0 0 18 8V7h-1Z" />
-    </svg>
-  );
-}
 
 function CompetitionCard({ c, matches, names }: { c: Competition; matches: MatchView[]; names: Map<number, string> }) {
   const jornadas = [...new Set(matches.map((m) => m.jornada))];
   return (
-    <section className="overflow-hidden rounded-lg border border-line bg-surface">
-      <header className="flex items-center justify-between gap-3 border-b border-line bg-surface-2 px-3 py-2">
-        <Link href={`/temporadas/${c.season.id}`} className="flex min-w-0 items-center gap-2 hover:underline">
-          <Trophy />
-          <span className="truncate text-sm font-semibold">{c.league.name}</span>
-          <span className="hidden shrink-0 text-xs text-muted sm:inline">
-            {[c.category?.name, jornadas.length === 1 ? `Jornada ${jornadas[0]}` : null].filter(Boolean).join(" · ")}
-          </span>
-        </Link>
-        <Link href={`/temporadas/${c.season.id}?tab=posiciones`} className="shrink-0 text-xs font-semibold text-sync hover:underline">
-          Tabla
-        </Link>
-      </header>
-      <div className="divide-y divide-line">
+    <Card
+      title={<Link href={`/temporadas/${c.season.id}`}>{c.league.name}</Link>}
+      hint={[c.category?.name, `Temporada ${c.season.year}`, jornadas.length === 1 ? `Jornada ${jornadas[0]}` : null]
+        .filter(Boolean)
+        .join(", ")}
+      actions={<Link href={`/temporadas/${c.season.id}?tab=tabla`}>Ver tabla</Link>}
+    >
+      <div className="tiles">
         {matches.map((m) => (
-          <MatchRow key={m.id} match={m} home={names.get(m.homeTeam) ?? `Equipo ${m.homeTeam}`} away={names.get(m.awayTeam) ?? `Equipo ${m.awayTeam}`} />
+          <MatchTile
+            key={m.id}
+            match={m}
+            home={names.get(m.homeTeam) ?? `Equipo ${m.homeTeam}`}
+            away={names.get(m.awayTeam) ?? `Equipo ${m.awayTeam}`}
+          />
         ))}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -74,72 +64,60 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     .filter((g) => g.matches.length > 0)
     .sort((a, b) => b.c.season.id - a.c.season.id);
 
-  // Mini tabla: la competicion del primer partido en vivo, o la mas reciente
+  // Tabla destacada: la competición del primer partido en vivo, o la más reciente
   const seasons = [...competitions].sort((a, b) => b.season.id - a.season.id);
   const featured = seasons.find((c) => c.matches.some((m) => m.status === "en_curso")) ?? groups[0]?.c ?? seasons[0];
   const standings = featured ? await getJson<Standings>(`/standings/${featured.season.id}`) : null;
 
   const href = (q: Record<string, string>) => `/?${new URLSearchParams(q).toString()}`;
+  const dayText = vista === "envivo" ? "Partidos jugándose ahora" : cap(`${selected === t ? "hoy, " : ""}${longDate(selected)}`);
 
   return (
-    <main className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="min-w-0 space-y-4">
-        <h1 className="sr-only">Partidos</h1>
-
-        {/* Selector de fechas */}
-        <nav aria-label="Fechas" className="flex items-center gap-1 rounded-lg border border-line bg-surface p-1">
-          {prev ? (
-            <Link href={href({ fecha: prev })} aria-label="Fecha anterior" className="rounded-md px-2 py-2 text-muted hover:bg-surface-2 hover:text-ink">
-              ‹
-            </Link>
-          ) : (
-            <span className="px-2 py-2 text-line">‹</span>
-          )}
-          <div className="scroll-x flex flex-1 gap-1">
-            {visibleDates.map((d) => {
-              const active = vista === "todos" && d === selected;
-              return (
-                <Link
-                  key={d}
-                  href={href({ fecha: d })}
-                  aria-current={active ? "date" : undefined}
-                  className={`min-w-[4.5rem] flex-1 rounded-md px-2 py-1.5 text-center text-sm transition-colors ${
-                    active ? "bg-sync font-semibold text-pitch" : "text-muted hover:bg-surface-2 hover:text-ink"
-                  }`}
-                >
-                  <span className="block font-semibold">{dayLabel(d)}</span>
-                  <span className="block text-xs opacity-80">{d.slice(8, 10)}/{d.slice(5, 7)}</span>
-                </Link>
-              );
-            })}
-          </div>
-          {next ? (
-            <Link href={href({ fecha: next })} aria-label="Fecha siguiente" className="rounded-md px-2 py-2 text-muted hover:bg-surface-2 hover:text-ink">
-              ›
-            </Link>
-          ) : (
-            <span className="px-2 py-2 text-line">›</span>
-          )}
-        </nav>
-
-        {/* Filtro Todos / En vivo */}
-        <div className="flex gap-2">
-          <Link
-            href={href({ fecha: selected })}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold ${vista === "todos" ? "bg-ink text-pitch" : "border border-line text-muted hover:text-ink"}`}
-          >
+    <>
+      <Band icon="balon" title="Partidos" intro={`${dayText}. Resultados, partidos en vivo y tablas de las ligas.`}>
+        <nav className="pill-tabs on-navy" aria-label="Filtro">
+          <Link href={href({ fecha: selected })} aria-current={vista === "todos" ? "page" : undefined}>
             Todos
           </Link>
-          <Link
-            href={href({ vista: "envivo" })}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold ${
-              vista === "envivo" ? "bg-live text-pitch" : "border border-line text-muted hover:text-ink"
-            }`}
-          >
-            <span aria-hidden className={`h-2 w-2 rounded-full ${vista === "envivo" ? "bg-pitch" : "live-dot bg-live"}`} />
-            En vivo {liveCount > 0 && <span className="tabular-nums">({liveCount})</span>}
+          <Link href={href({ vista: "envivo" })} aria-current={vista === "envivo" ? "page" : undefined}>
+            <span aria-hidden className="live-dot" />
+            En vivo{liveCount > 0 && ` (${liveCount})`}
           </Link>
-        </div>
+        </nav>
+      </Band>
+      <Page>
+        {vista === "todos" && dates.length > 0 && (
+          <nav aria-label="Fechas" className="dates">
+            {prev ? (
+              <Link href={href({ fecha: prev })} aria-label="Fecha anterior" className="arrow">
+                ‹
+              </Link>
+            ) : (
+              <span className="arrow" aria-hidden>
+                ‹
+              </span>
+            )}
+            <ul>
+              {visibleDates.map((d) => (
+                <li key={d}>
+                  <Link href={href({ fecha: d })} aria-current={d === selected ? "date" : undefined}>
+                    <b>{dayLabel(d)}</b>
+                    {d.slice(8, 10)}/{d.slice(5, 7)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {next ? (
+              <Link href={href({ fecha: next })} aria-label="Fecha siguiente" className="arrow">
+                ›
+              </Link>
+            ) : (
+              <span className="arrow" aria-hidden>
+                ›
+              </span>
+            )}
+          </nav>
+        )}
 
         {!ok && (
           <Notice tone="error">
@@ -148,54 +126,61 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </Notice>
         )}
 
-        {groups.length > 0
-          ? groups.map(({ c, matches }) => <CompetitionCard key={c.season.id} c={c} matches={matches} names={names} />)
-          : ok && (
-              <p className="rounded-lg border border-line bg-surface p-6 text-center text-sm text-muted">
-                {vista === "envivo" ? "No hay partidos en juego en este momento." : "No hay partidos programados para este día."}
-              </p>
+        <div className="cols">
+          <div className="stack">
+            {groups.length > 0
+              ? groups.map(({ c, matches }) => <CompetitionCard key={c.season.id} c={c} matches={matches} names={names} />)
+              : ok && (
+                  <Card
+                    title={vista === "envivo" ? "No hay partidos en juego" : "No hay partidos este día"}
+                    hint={
+                      vista === "envivo"
+                        ? "Cuando empiece un partido, aquí verás su marcador en vivo."
+                        : "Elige otra fecha para ver sus partidos y resultados."
+                    }
+                  />
+                )}
+          </div>
+
+          <aside className="stack">
+            {featured && standings && standings.standings.length > 0 && (
+              <Card
+                title="Tabla de posiciones"
+                hint={`${featured.league.name}, ${featured.category?.name ?? `temporada ${featured.season.year}`}`}
+                actions={<Link href={`/temporadas/${featured.season.id}?tab=tabla`}>Completa</Link>}
+              >
+                <StandingsTable rows={standings.standings.slice(0, 6)} names={names} compact />
+              </Card>
             )}
-      </div>
 
-      {/* Barra lateral */}
-      <aside className="space-y-4">
-        {featured && standings && standings.standings.length > 0 && (
-          <section className="overflow-hidden rounded-lg border border-line bg-surface">
-            <header className="border-b border-line bg-surface-2 px-3 py-2">
-              <h2 className="text-sm font-semibold">Tabla de posiciones</h2>
-              <p className="truncate text-xs text-muted">
-                {featured.league.name} · {featured.category?.name ?? featured.season.year}
-              </p>
-            </header>
-            <StandingsTable rows={standings.standings.slice(0, 6)} names={names} compact seasonId={featured.season.id} />
-          </section>
-        )}
-
-        <section className="overflow-hidden rounded-lg border border-line bg-surface">
-          <h2 className="border-b border-line bg-surface-2 px-3 py-2 text-sm font-semibold">Competiciones</h2>
-          {seasons.length > 0 ? (
-            <ul className="divide-y divide-line">
-              {seasons.map((c) => (
-                <li key={c.season.id}>
-                  <Link href={`/temporadas/${c.season.id}`} className="flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2">
-                    <Trophy />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold">{c.league.name}</span>
-                      <span className="block truncate text-xs text-muted">
-                        {[SPORT_LABEL[c.league.sport] ?? c.league.sport, c.category?.name, `Temporada ${c.season.year}`]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-3 py-4 text-sm text-muted">Todavía no hay competiciones.</p>
-          )}
-        </section>
-      </aside>
-    </main>
+            <Card title="Competiciones">
+              {seasons.length > 0 ? (
+                <ul className="team-list">
+                  {seasons.map((c) => (
+                    <li key={c.season.id}>
+                      <Link href={`/temporadas/${c.season.id}`}>
+                        <span className="ico">
+                          <Icon id="ligas" />
+                        </span>
+                        <span className="two">
+                          {c.league.name}
+                          <span>
+                            {[SPORT_LABEL[c.league.sport] ?? c.league.sport, c.category?.name, `temporada ${c.season.year}`]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="empty">Todavía no hay competiciones.</p>
+              )}
+            </Card>
+          </aside>
+        </div>
+      </Page>
+    </>
   );
 }

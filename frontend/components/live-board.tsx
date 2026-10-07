@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import Crest from "@/components/crest";
+import { Pitch } from "@/components/icons";
 import Tabs from "@/components/tabs";
-import { API_URL, utcDate, utcDay } from "@/lib/services";
+import { Field, FormMessage, StatusChip } from "@/components/ui";
+import { API_URL, longDate } from "@/lib/services";
 import { api, useSession } from "@/lib/session";
 import type { Assignment, EventType, LiveMatch, Match, MatchEvent, Team } from "@/lib/types";
 
@@ -15,25 +17,16 @@ const EVENT_LABEL: Record<EventType, string> = {
   tarjeta_roja: "Tarjeta roja",
   sustitucion: "Cambio",
 };
+const EVENT_CLASS: Record<EventType, string> = {
+  gol: "ev-gol",
+  tarjeta_amarilla: "ev-amarilla",
+  tarjeta_roja: "ev-roja",
+  sustitucion: "ev-sustitucion",
+};
 const EVENT_TYPES = Object.keys(EVENT_LABEL) as EventType[];
 
 function EventIcon({ type }: { type: EventType }) {
-  if (type === "tarjeta_amarilla") return <span aria-hidden className="inline-block h-4 w-3 shrink-0 rounded-sm bg-yellow-400" />;
-  if (type === "tarjeta_roja") return <span aria-hidden className="inline-block h-4 w-3 shrink-0 rounded-sm bg-red-500" />;
-  if (type === "sustitucion")
-    return (
-      <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4 shrink-0">
-        <path d="M6 3v10M6 13l-3-3M6 13l3-3" stroke="#6cc38a" strokeWidth="2" fill="none" strokeLinecap="round" />
-        <path d="M14 17V7M14 7l-3 3M14 7l3 3" stroke="#e06a5a" strokeWidth="2" fill="none" strokeLinecap="round" />
-      </svg>
-    );
-  return (
-    <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4 shrink-0">
-      <circle cx="10" cy="10" r="8.5" fill="#eaf2ec" />
-      <path d="M10 5.5l3.2 2.3-1.2 3.8H8l-1.2-3.8z" fill="#0e1a14" />
-      <path d="M10 1.5v4M13.2 7.8l3.9-1.4M12 11.6l2.4 3.5M8 11.6l-2.4 3.5M6.8 7.8 2.9 6.4" stroke="#0e1a14" strokeWidth="1.2" />
-    </svg>
-  );
+  return <span aria-hidden className={`ev ${EVENT_CLASS[type]}`} />;
 }
 
 interface Props {
@@ -56,10 +49,10 @@ export default function LiveBoard({ match, home, away, initial, competition, tab
   const playerName = (e: Pick<MatchEvent, "teamId" | "playerId">) => {
     if (!e.playerId) return "";
     const p = teamOf(e.teamId).players?.find((x) => x.id === e.playerId);
-    return p ? (p.name ?? `Camiseta ${p.jerseyNumber}`) : `Jugador ${e.playerId}`;
+    return p ? `${p.name ?? "Camiseta"} #${p.jerseyNumber}` : `Jugador ${e.playerId}`;
   };
 
-  // Marcador en vivo por WebSocket (canal /live-scores, a traves del API Gateway): sin polling
+  // Marcador en vivo por WebSocket (canal /live-scores, a través del API Gateway): sin polling
   useEffect(() => {
     const socket = io(`${API_URL}/live-scores`, { transports: ["websocket"] });
     socket.on("connect", () => {
@@ -73,7 +66,7 @@ export default function LiveBoard({ match, home, away, initial, competition, tab
       if (type === "match.event") {
         const last = [...next.events].sort((a, b) => b.id - a.id)[0];
         if (last) setLastUpdate(`${EVENT_LABEL[last.type]} de ${teamOf(last.teamId).name}, minuto ${last.minute}`);
-      } else if (type === "match.completed") setLastUpdate("Final del partido");
+      } else if (type === "match.completed") setLastUpdate("Final del partido. La tabla de posiciones se actualizó.");
       else if (type === "match.suspended") setLastUpdate("Partido suspendido");
       else if (type === "match.event_annulled") setLastUpdate("Se anuló un evento");
     });
@@ -84,7 +77,7 @@ export default function LiveBoard({ match, home, away, initial, competition, tab
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.id]);
 
-  // Un arbitro solo controla los partidos que tiene asignados (el gateway tambien lo exige)
+  // Un árbitro solo controla los partidos que tiene asignados (el gateway también lo exige)
   const refereeId = user?.role === "arbitro" ? user.refereeId : null;
   useEffect(() => {
     if (!refereeId) return;
@@ -104,97 +97,63 @@ export default function LiveBoard({ match, home, away, initial, competition, tab
   const score = live?.score ?? { home: 0, away: 0 };
   const events = [...(live?.events ?? [])].sort((a, b) => a.minute - b.minute || a.id - b.id);
   const lastMinute = events.at(-1)?.minute;
-  const date = utcDate(match.scheduledAt);
   const showScore = status !== "programado" || events.length > 0;
 
-  const statusLine = {
-    en_curso: (
-      <span className="flex items-center justify-center gap-2 font-semibold text-live">
-        <span aria-hidden className="live-dot h-2 w-2 rounded-full bg-live" />
-        En vivo{lastMinute !== undefined ? ` · ${lastMinute}'` : ""}
-      </span>
-    ),
-    finalizado: <span className="font-semibold text-muted">Final</span>,
-    suspendido: <span className="font-semibold text-async">Suspendido</span>,
-    programado: (
-      <span className="font-semibold capitalize text-muted">
-        {utcDay(date)} {date.slice(8, 10)}/{date.slice(5, 7)}
-      </span>
-    ),
-  }[status];
-
-  const teamHeader = (t: Team) => (
-    <div className="flex min-w-0 flex-col items-center gap-2 text-center">
-      <Crest name={t.name} size={64} />
-      <span className="font-display text-lg font-bold leading-tight sm:text-2xl">{t.name}</span>
-    </div>
-  );
-
   return (
-    <div className="space-y-4">
-      <Link href={`/temporadas/${competition.seasonId}`} className="text-sm text-sync hover:underline">
-        ‹ {competition.name}
-        {competition.jornada ? ` · Jornada ${competition.jornada}` : ""}
-      </Link>
-
-      {/* Marcador */}
-      <section aria-label="Marcador" className="rounded-xl border border-line bg-surface px-4 pb-4 pt-5 sm:px-8">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
-          {teamHeader(home)}
-          <div className="flex min-w-[7rem] flex-col items-center pt-3">
-            <p
-              className={`font-display text-5xl font-bold tabular-nums sm:text-6xl ${status === "en_curso" ? "text-live" : ""}`}
-              aria-live="polite"
-            >
-              {showScore ? (
-                <>
-                  {score.home}
-                  <span className="mx-2 text-muted">-</span>
-                  {score.away}
-                </>
-              ) : (
-                <span className="text-4xl text-muted">vs</span>
-              )}
-            </p>
-            <div className="mt-1 text-sm">{statusLine}</div>
-          </div>
-          {teamHeader(away)}
+    <>
+      <section aria-label="Marcador" className="board">
+        <Pitch />
+        <div className="board-top">
+          <span>
+            <Link href={`/temporadas/${competition.seasonId}`}>{competition.name}</Link>
+            {competition.jornada ? `, jornada ${competition.jornada}` : ""}, {longDate(match.scheduledAt)}
+          </span>
+          <StatusChip status={status} />
         </div>
-        {status === "suspendido" && live?.suspensionReason && (
-          <p className="mt-3 text-center text-sm text-async">{live.suspensionReason}</p>
-        )}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-line pt-3 text-xs text-muted">
+        <div className="board-score">
+          <div className="board-side">
+            <Crest name={home.name} size={64} />
+            {home.name}
+          </div>
+          <div>
+            <div className={`board-digits${showScore ? "" : " vs"}`} aria-live="polite">
+              {showScore ? `${score.home}–${score.away}` : "vs"}
+            </div>
+            {status === "en_curso" && lastMinute !== undefined && <span className="board-clock">{lastMinute}&apos;</span>}
+          </div>
+          <div className="board-side">
+            <Crest name={away.name} size={64} />
+            {away.name}
+          </div>
+        </div>
+        {status === "suspendido" && live?.suspensionReason && <p className="board-note">{live.suspensionReason}</p>}
+        <div className="board-meta">
           <span>{match.venue}</span>
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-ok" : "bg-error"}`} />
+          <span>
+            <span aria-hidden className={`dot${connected ? "" : " off"}`} />
             {connected ? "Actualización en vivo" : "Reconectando..."}
           </span>
           {live?.viewers ? <span>{live.viewers} siguiendo el partido</span> : null}
         </div>
-        <p className="min-h-5 pt-1 text-center text-sm text-sync" aria-live="polite">
+        <p className="board-flash" aria-live="polite">
           {lastUpdate}
         </p>
       </section>
 
-      <div className={`grid gap-4 ${canControl ? "lg:grid-cols-[minmax(0,1fr)_23rem]" : ""}`}>
-        {canControl && live && (
-          <div className="lg:order-2">
-            <div className="lg:sticky lg:top-4">
-              <Controls match={match} home={home} away={away} live={live} onChange={setLive} />
-            </div>
-          </div>
-        )}
-        <div className="overflow-hidden rounded-lg border border-line bg-surface lg:order-1">
+      <div className={canControl ? "cols" : undefined}>
+        <section className="card tabs-card" aria-label="Detalle del partido">
           <Tabs
+            label="Detalle del partido"
             tabs={[
               {
-                id: "resumen",
-                label: "Resumen",
+                id: "eventos",
+                label: "Eventos",
                 content: (
                   <Timeline
                     events={events}
                     status={status}
-                    homeId={home.id}
+                    home={home}
+                    away={away}
                     score={score}
                     playerName={playerName}
                     annul={canControl ? (eventId) => annul(match.id, eventId, setLive) : undefined}
@@ -205,9 +164,10 @@ export default function LiveBoard({ match, home, away, initial, competition, tab
               { id: "tabla", label: "Tabla", content: table },
             ]}
           />
-        </div>
+        </section>
+        {canControl && live && <Controls match={match} home={home} away={away} live={live} onChange={setLive} />}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -221,112 +181,83 @@ async function annul(matchId: number, eventId: number, onDone: (l: LiveMatch) =>
   }
 }
 
-/**
- * Linea de tiempo como en las apps de resultados: el minuto al centro, los eventos
- * del local a la izquierda y los del visitante a la derecha, con el descanso y el final.
- */
+/** Eventos en orden: minuto, ícono y texto, con el marcador parcial en cada gol, el descanso y el final. */
 function Timeline({
   events,
   status,
-  homeId,
+  home,
+  away,
   score,
   playerName,
   annul,
 }: {
   events: MatchEvent[];
   status: string;
-  homeId: number;
+  home: Team;
+  away: Team;
   score: { home: number; away: number };
   playerName: (e: MatchEvent) => string;
   annul?: (eventId: number) => void;
 }) {
-  if (events.length === 0) {
-    return <p className="p-6 text-center text-sm text-muted">Todavía no hay eventos en este partido.</p>;
-  }
-  let home = 0;
-  let away = 0;
+  if (status === "programado" && events.length === 0) return <p className="empty">El partido todavía no empieza.</p>;
+  if (events.length === 0) return <p className="empty">Todavía no hay eventos en este partido.</p>;
+  let h = 0;
+  let a = 0;
   const running = new Map<number, string>();
   for (const e of events) {
     if (e.type === "gol") {
-      if (e.teamId === homeId) home++;
-      else away++;
-      running.set(e.id, `${home} - ${away}`);
+      if (e.teamId === home.id) h++;
+      else a++;
+      running.set(e.id, `${h}–${a}`);
     }
   }
   const firstHalf = events.filter((e) => e.minute <= 45);
   const secondHalf = events.filter((e) => e.minute > 45);
   const htGoals = firstHalf.filter((e) => e.type === "gol");
-  const ht = `${htGoals.filter((e) => e.teamId === homeId).length} - ${htGoals.filter((e) => e.teamId !== homeId).length}`;
-  const row = (e: MatchEvent) => (
-    <TimelineRow
-      key={e.id}
-      event={e}
-      isHome={e.teamId === homeId}
-      player={playerName(e)}
-      runningScore={running.get(e.id)}
-      annul={annul}
-    />
-  );
+  const ht = `${htGoals.filter((e) => e.teamId === home.id).length}–${htGoals.filter((e) => e.teamId !== home.id).length}`;
+  const row = (e: MatchEvent) => {
+    const team = e.teamId === home.id ? home : away;
+    const player = playerName(e);
+    return (
+      <li key={e.id}>
+        <span className="min">{e.minute}&apos;</span>
+        <EventIcon type={e.type} />
+        <span>
+          <b>{EVENT_LABEL[e.type]}</b> de {team.name}
+          {player && `, ${player}`}
+          {running.has(e.id) && <span className="ev-score">{running.get(e.id)}</span>}
+        </span>
+        {annul ? (
+          <button
+            type="button"
+            className="annul"
+            aria-label={`Anular ${EVENT_LABEL[e.type]} del minuto ${e.minute}`}
+            onClick={() => annul(e.id)}
+          >
+            Anular
+          </button>
+        ) : (
+          <span />
+        )}
+      </li>
+    );
+  };
 
   return (
-    <ol className="px-4 py-3">
+    <ol className="events">
       {firstHalf.map(row)}
-      {(secondHalf.length > 0 || status === "finalizado") && <TimelineDivider label="Descanso" value={ht} />}
-      {secondHalf.map(row)}
-      {status === "finalizado" && <TimelineDivider label="Final" value={`${score.home} - ${score.away}`} />}
-    </ol>
-  );
-}
-
-function TimelineDivider({ label, value }: { label: string; value: string }) {
-  return (
-    <li className="my-2 flex items-center justify-center gap-2 rounded-md bg-surface-2 py-1.5 text-xs font-semibold text-muted">
-      {label} <span className="tabular-nums text-ink">{value}</span>
-    </li>
-  );
-}
-
-function TimelineRow({
-  event: e,
-  isHome,
-  player,
-  runningScore,
-  annul,
-}: {
-  event: MatchEvent;
-  isHome: boolean;
-  player: string;
-  runningScore?: string;
-  annul?: (eventId: number) => void;
-}) {
-  const detail = (
-    <span className={`flex min-w-0 items-center gap-2 ${isHome ? "flex-row-reverse text-right" : ""}`}>
-      <EventIcon type={e.type} />
-      <span className="min-w-0 break-words leading-tight">
-        <span className="font-semibold">{player || EVENT_LABEL[e.type]}</span>
-        {player && <span className="sr-only"> ({EVENT_LABEL[e.type]})</span>}
-        {runningScore && <span className="ml-1.5 whitespace-nowrap tabular-nums text-sync">{runningScore}</span>}
-      </span>
-      {annul && (
-        <button
-          className="shrink-0 rounded px-1 text-xs text-muted hover:bg-error/20 hover:text-error"
-          title="Anular este evento"
-          aria-label={`Anular ${EVENT_LABEL[e.type]} del minuto ${e.minute}`}
-          onClick={() => annul(e.id)}
-        >
-          ✕
-        </button>
+      {(secondHalf.length > 0 || status === "finalizado") && (
+        <li className="ev-divider">
+          Descanso <b>{ht}</b>
+        </li>
       )}
-    </span>
-  );
-  return (
-    <li className="grid grid-cols-[1fr_2.75rem_1fr] items-center gap-1.5 py-1.5 text-sm sm:gap-2">
-      <span className="flex min-w-0 justify-end">{isHome && detail}</span>
-      <span className="mx-auto rounded-full border border-line px-2 py-0.5 text-xs font-semibold tabular-nums">
-        {e.minute}&apos;
-      </span>
-      <span className="min-w-0">{!isHome && detail}</span>
-    </li>
+      {secondHalf.map(row)}
+      {status === "finalizado" && (
+        <li className="ev-divider">
+          Final <b>{`${score.home}–${score.away}`}</b>
+        </li>
+      )}
+    </ol>
   );
 }
 
@@ -334,44 +265,41 @@ function TimelineRow({
 function Lineups({ home, away, events }: { home: Team; away: Team; events: MatchEvent[] }) {
   const column = (t: Team) => (
     <div className="min-w-0">
-      <h3 className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-sm font-semibold">
-        <Crest name={t.name} size={20} /> {t.name}
+      <h3>
+        <Crest name={t.name} size={28} /> {t.name}
       </h3>
       {(t.players ?? []).length === 0 ? (
-        <p className="px-4 py-3 text-sm text-muted">Sin jugadores registrados.</p>
+        <p className="empty">Sin jugadores registrados.</p>
       ) : (
-        <ul className="divide-y divide-line">
+        <ul>
           {[...(t.players ?? [])]
             .sort((a, b) => a.jerseyNumber - b.jerseyNumber)
-            .map((p) => {
-              const mine = events.filter((e) => e.playerId === p.id);
-              return (
-                <li key={p.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xs font-bold tabular-nums">
-                    {p.jerseyNumber}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{p.name ?? `Camiseta ${p.jerseyNumber}`}</span>
-                  <span className="flex items-center gap-1">
-                    {mine.map((e) => (
+            .map((p) => (
+              <li key={p.id}>
+                <span className="jersey">{p.jerseyNumber}</span>
+                <span className="truncate">{p.name ?? `Camiseta ${p.jerseyNumber}`}</span>
+                <span>
+                  {events
+                    .filter((e) => e.playerId === p.id)
+                    .map((e) => (
                       <EventIcon key={e.id} type={e.type} />
                     ))}
-                  </span>
-                </li>
-              );
-            })}
+                </span>
+              </li>
+            ))}
         </ul>
       )}
     </div>
   );
   return (
-    <div className="grid sm:grid-cols-2 sm:divide-x sm:divide-line">
+    <div className="lineups">
       {column(home)}
       {column(away)}
     </div>
   );
 }
 
-/** Panel del arbitro asignado o del organizador para registrar el partido. */
+/** Mesa de control del árbitro asignado o del organizador para registrar el partido. */
 function Controls({
   match,
   home,
@@ -411,25 +339,28 @@ function Controls({
 
   if (live.status === "suspendido") {
     return (
-      <section className="rounded-lg border border-line bg-surface p-5 text-sm text-muted">
-        El partido está suspendido: no admite más eventos.
+      <section className="card controls">
+        <h2>Mesa de control</h2>
+        <p className="hint">El partido está suspendido: no admite más eventos.</p>
       </section>
     );
   }
 
   return (
-    <section aria-labelledby="controles" className="rounded-lg border border-async/50 bg-surface p-4">
-      <h2 id="controles" className="font-display text-xl font-bold">
-        {finished ? "Corregir el acta" : "Mesa de control"}
-      </h2>
-      <p className="mt-0.5 text-xs text-muted">
-        {finished
-          ? "Cada cambio reenvía el acta y la tabla se recalcula sin duplicar."
-          : "Cada evento actualiza el marcador de todos los espectadores al instante."}
-      </p>
+    <section aria-labelledby="controles" className="card controls">
+      <div className="head">
+        <div>
+          <h2 id="controles">{finished ? "Corregir el acta" : "Mesa de control"}</h2>
+          <p className="hint">
+            {finished
+              ? "Cada cambio reenvía el acta y la tabla se recalcula sin duplicar."
+              : "Cada evento actualiza el marcador de todos los espectadores al instante."}
+          </p>
+        </div>
+      </div>
 
       <form
-        className="mt-3 space-y-3"
+        className="mt-5"
         onSubmit={(e) => {
           e.preventDefault();
           run(async () => {
@@ -443,50 +374,38 @@ function Controls({
           });
         }}
       >
-        <fieldset>
+        <fieldset className="opts">
           <legend className="sr-only">Equipo</legend>
-          <div className="grid grid-cols-2 gap-2">
-            {[home, away].map((t) => (
-              <label
-                key={t.id}
-                className={`flex cursor-pointer items-center justify-center gap-2 rounded-md border px-2 py-2 text-sm font-semibold ${teamId === t.id ? "border-sync bg-sync/10" : "border-line"}`}
-              >
-                <input
-                  type="radio"
-                  name="team"
-                  checked={teamId === t.id}
-                  onChange={() => {
-                    setTeamId(t.id);
-                    setPlayerId("");
-                  }}
-                  className="sr-only"
-                />
-                <Crest name={t.name} size={18} />
-                <span className="truncate">{t.name}</span>
-              </label>
-            ))}
-          </div>
+          {[home, away].map((t) => (
+            <label key={t.id} className="opt">
+              <input
+                type="radio"
+                name="team"
+                className="sr-only"
+                checked={teamId === t.id}
+                onChange={() => {
+                  setTeamId(t.id);
+                  setPlayerId("");
+                }}
+              />
+              <Crest name={t.name} size={22} />
+              <span>{t.name}</span>
+            </label>
+          ))}
         </fieldset>
-
-        <fieldset>
+        <fieldset className="opts">
           <legend className="sr-only">Evento</legend>
-          <div className="grid grid-cols-2 gap-2">
-            {EVENT_TYPES.map((t) => (
-              <label
-                key={t}
-                className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${type === t ? "border-sync bg-sync/10" : "border-line"}`}
-              >
-                <input type="radio" name="type" value={t} checked={type === t} onChange={() => setType(t)} className="sr-only" />
-                <EventIcon type={t} /> {EVENT_LABEL[t]}
-              </label>
-            ))}
-          </div>
+          {EVENT_TYPES.map((t) => (
+            <label key={t} className="opt">
+              <input type="radio" name="type" value={t} className="sr-only" checked={type === t} onChange={() => setType(t)} />
+              <EventIcon type={t} />
+              <span>{EVENT_LABEL[t]}</span>
+            </label>
+          ))}
         </fieldset>
-
-        <div className="grid grid-cols-[2fr_1fr] gap-2">
-          <label className="block text-xs text-muted">
-            Jugador
-            <select className="field" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
+        <div className="grid grid-cols-[2fr_1fr] gap-3">
+          <Field label="Jugador">
+            <select value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
               <option value="">Sin especificar</option>
               {(team.players ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
@@ -494,29 +413,20 @@ function Controls({
                 </option>
               ))}
             </select>
-          </label>
-          <label className="block text-xs text-muted">
-            Minuto
-            <input
-              className="field tabular-nums"
-              type="number"
-              min={0}
-              max={130}
-              required
-              value={minute}
-              onChange={(e) => setMinute(e.target.value)}
-            />
-          </label>
+          </Field>
+          <Field label="Minuto">
+            <input type="number" min={0} max={130} required value={minute} onChange={(e) => setMinute(e.target.value)} />
+          </Field>
         </div>
-
-        <button type="submit" className="btn btn-primary w-full justify-center" disabled={busy}>
-          {finished ? "Agregar al acta" : "Registrar"}
+        <button type="submit" className="btn btn-blue btn-block mt-4" disabled={busy}>
+          {finished ? "Agregar al acta" : "Registrar evento"}
         </button>
       </form>
 
-      <div className="mt-4 space-y-2 border-t border-line pt-3">
+      <div className="f grid gap-3">
         <button
-          className="btn btn-accent w-full justify-center"
+          type="button"
+          className="btn btn-green btn-block"
           disabled={busy}
           onClick={() => {
             if (!finished && !window.confirm("¿Finalizar el partido? Se publica el acta y se recalcula la tabla.")) return;
@@ -527,7 +437,7 @@ function Controls({
               );
               return acta.resent
                 ? "Acta reenviada: las estadísticas se recalculan con ella."
-                : `Partido finalizado ${acta.homeGoals} - ${acta.awayGoals}. La tabla de posiciones se actualiza sola.`;
+                : `Partido finalizado ${acta.homeGoals}–${acta.awayGoals}. La tabla de posiciones se actualiza sola.`;
             });
           }}
         >
@@ -536,7 +446,7 @@ function Controls({
 
         {!finished && (
           <form
-            className="flex gap-2"
+            className="inline-form"
             onSubmit={(e) => {
               e.preventDefault();
               run(async () => {
@@ -550,24 +460,19 @@ function Controls({
             </label>
             <input
               id="reason"
-              className="field mt-0 flex-1 text-sm"
-              placeholder="Motivo de suspensión"
+              className="flex-1"
+              placeholder="Motivo de la suspensión"
               required
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />
-            <button type="submit" className="btn btn-danger btn-sm" disabled={busy}>
+            <button type="submit" className="btn btn-red" disabled={busy}>
               Suspender
             </button>
           </form>
         )}
       </div>
-
-      {message && (
-        <p role="status" className={`mt-3 text-sm ${message.tone === "ok" ? "text-ok" : "text-error"}`}>
-          {message.text}
-        </p>
-      )}
+      <FormMessage message={message} />
     </section>
   );
 }

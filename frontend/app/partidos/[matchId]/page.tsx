@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import LiveBoard from "@/components/live-board";
 import StandingsTable from "@/components/standings-table";
+import { Page } from "@/components/ui";
 import { findSeason, formByTeam, seasonMatches, teamName, teamsById } from "@/lib/server-data";
 import { getJson } from "@/lib/services";
 import type { LiveMatch, Match, Standings } from "@/lib/types";
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: PageProps<"/partidos/[matchId
   const data = await load(Number((await params).matchId));
   if (!data) return { title: "Partido" };
   const title = `${teamName(data.teams, data.match.homeTeam)} vs ${teamName(data.teams, data.match.awayTeam)}`;
-  return { title, description: `Marcador en vivo, línea de tiempo y plantillas de ${title}.` };
+  return { title, description: `Marcador en vivo, eventos y plantillas de ${title}.` };
 }
 
 export default async function MatchPage({ params }: PageProps<"/partidos/[matchId]">) {
@@ -37,7 +38,7 @@ export default async function MatchPage({ params }: PageProps<"/partidos/[matchI
   const home = teams.get(match.homeTeam) ?? { id: match.homeTeam, name: `Equipo ${match.homeTeam}`, categoryId: 0, players: [] };
   const away = teams.get(match.awayTeam) ?? { id: match.awayTeam, name: `Equipo ${match.awayTeam}`, categoryId: 0, players: [] };
 
-  // Tabla de la temporada con los dos equipos resaltados (pestana "Tabla")
+  // Tabla de la temporada con los dos equipos resaltados (pestaña "Tabla")
   const allTeams = await teamsById((standings?.standings ?? []).map((s) => s.teamId));
   const names = new Map([...allTeams].map(([id, t]) => [id, t.name]));
   const table =
@@ -49,11 +50,11 @@ export default async function MatchPage({ params }: PageProps<"/partidos/[matchI
         highlight={[match.homeTeam, match.awayTeam]}
       />
     ) : (
-      <p className="p-6 text-sm text-muted">La tabla de esta temporada todavía no está disponible.</p>
+      <p className="empty">La tabla de esta temporada todavía no está disponible.</p>
     );
 
   return (
-    <main>
+    <Page>
       <LiveBoard
         match={match}
         home={home}
@@ -66,6 +67,6 @@ export default async function MatchPage({ params }: PageProps<"/partidos/[matchI
         }}
         table={table}
       />
-    </main>
+    </Page>
   );
 }

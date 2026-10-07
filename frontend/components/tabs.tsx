@@ -8,8 +8,8 @@ export interface TabItem {
   content: React.ReactNode;
 }
 
-/** Pestanas accesibles (teclado con flechas). El contenido puede venir del servidor. */
-export default function Tabs({ tabs, initial }: { tabs: TabItem[]; initial?: string }) {
+/** Pestañas accesibles (teclado con flechas). El contenido puede venir del servidor. */
+export default function Tabs({ tabs, initial, label }: { tabs: TabItem[]; initial?: string; label?: string }) {
   const [active, setActive] = useState(tabs.some((t) => t.id === initial) ? initial! : tabs[0].id);
 
   const onKey = (e: React.KeyboardEvent, index: number) => {
@@ -22,12 +22,13 @@ export default function Tabs({ tabs, initial }: { tabs: TabItem[]; initial?: str
 
   return (
     <div>
-      <div role="tablist" className="scroll-x flex gap-6 border-b border-line px-4">
+      <div role="tablist" aria-label={label} className="tabs">
         {tabs.map((t, i) => (
           <button
             key={t.id}
             id={`tab-${t.id}`}
             role="tab"
+            type="button"
             aria-selected={active === t.id}
             aria-controls={`panel-${t.id}`}
             tabIndex={active === t.id ? 0 : -1}
@@ -40,7 +41,14 @@ export default function Tabs({ tabs, initial }: { tabs: TabItem[]; initial?: str
         ))}
       </div>
       {tabs.map((t) => (
-        <div key={t.id} id={`panel-${t.id}`} role="tabpanel" aria-labelledby={`tab-${t.id}`} hidden={active !== t.id}>
+        <div
+          key={t.id}
+          id={`panel-${t.id}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${t.id}`}
+          hidden={active !== t.id}
+          className="tab-panel"
+        >
           {t.content}
         </div>
       ))}

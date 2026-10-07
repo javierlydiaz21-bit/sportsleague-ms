@@ -1,73 +1,142 @@
 import Link from "next/link";
-import { STATUS_CLASS, STATUS_LABEL } from "@/lib/services";
+import { Icon, Pitch, type IconId } from "@/components/icons";
+import { STATUS_LABEL } from "@/lib/services";
 import type { MatchStatus } from "@/lib/types";
 
-export function Section({
+/** Banda en azul tinta con la cancha en trazo fino: el encabezado de cada página. */
+export function Band({
+  icon,
   title,
-  description,
+  intro,
   children,
-  id,
-  actions,
 }: {
-  title: string;
-  description?: React.ReactNode;
-  children: React.ReactNode;
-  id?: string;
-  actions?: React.ReactNode;
+  icon?: IconId;
+  title: React.ReactNode;
+  intro?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
-    <section id={id} aria-labelledby={id ? `${id}-title` : undefined} className="rounded-lg border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 id={id ? `${id}-title` : undefined} className="font-display text-2xl font-bold">
-            {title}
-          </h2>
-          {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+    <section className="band">
+      <Pitch />
+      <div className="wrap">
+        {icon && (
+          <span className="band-icon" aria-hidden>
+            <Icon id={icon} />
+          </span>
+        )}
+        <div className="band-text">
+          <h1>{title}</h1>
+          {intro && <p>{intro}</p>}
         </div>
-        {actions}
+        {children && <div className="band-aside">{children}</div>}
       </div>
-      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+/** Contenido de la página, debajo de la banda. */
+export function Page({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="page">
+      <div className="wrap stack">{children}</div>
+    </main>
+  );
+}
+
+export function Card({
+  title,
+  hint,
+  actions,
+  children,
+  id,
+  className = "",
+}: {
+  title?: React.ReactNode;
+  hint?: React.ReactNode;
+  actions?: React.ReactNode;
+  children?: React.ReactNode;
+  id?: string;
+  className?: string;
+}) {
+  return (
+    <section id={id} aria-labelledby={id && title ? `${id}-title` : undefined} className={`card ${className}`}>
+      {(title || actions) && (
+        <div className="head">
+          <div>
+            {title && <h2 id={id ? `${id}-title` : undefined}>{title}</h2>}
+            {hint && <p className="hint">{hint}</p>}
+          </div>
+          {actions}
+        </div>
+      )}
+      {children}
     </section>
   );
 }
 
 export function Notice({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "error" | "ok" }) {
-  const cls = {
-    muted: "border-line text-muted",
-    error: "border-error/60 bg-error/10 text-error",
-    ok: "border-ok/60 bg-ok/10 text-ok",
-  }[tone];
-  return <p className={`rounded-lg border p-4 text-sm ${cls}`}>{children}</p>;
+  const cls = { muted: "is-muted", error: "is-error", ok: "" }[tone];
+  return (
+    <p className={`flash ${cls}`} role={tone === "error" ? "alert" : "status"}>
+      {children}
+    </p>
+  );
 }
 
-export function StatusBadge({ status }: { status: MatchStatus }) {
+/** Resultado de un formulario, debajo de su botón. */
+export function FormMessage({ message }: { message: { tone: "ok" | "error"; text: string } | null }) {
+  if (!message) return null;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CLASS[status]}`}>
-      {status === "en_curso" && <span aria-hidden className="live-dot h-1.5 w-1.5 rounded-full bg-live" />}
+    <p role={message.tone === "error" ? "alert" : "status"} className={`form-msg is-${message.tone}`}>
+      {message.text}
+    </p>
+  );
+}
+
+export function StatusChip({ status }: { status: MatchStatus }) {
+  return (
+    <span className={`chip chip-${status}`}>
+      {status === "en_curso" && <i aria-hidden />}
       {STATUS_LABEL[status]}
     </span>
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+export function Field({ label, hint, children, className }: { label: string; hint?: string; children: React.ReactNode; className?: string }) {
   return (
-    <label className="block text-sm text-muted">
-      {label}
+    <label className={`fl ${className ?? ""}`}>
+      <span>
+        {label} {hint && <small>{hint}</small>}
+      </span>
       {children}
-      {hint && <span className="mt-1 block text-xs">{hint}</span>}
     </label>
   );
 }
 
-/** Aviso para paginas que requieren sesion o un rol. */
+export function EmptyCard({ title, text, href, label }: { title: string; text: string; href?: string; label?: string }) {
+  return (
+    <Card title={title} hint={text}>
+      {href && (
+        <div className="factions">
+          <Link className="btn btn-blue" href={href}>
+            {label}
+          </Link>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Aviso para páginas que requieren sesión o un rol. */
 export function LoginRequired({ role }: { role?: string }) {
   return (
-    <Notice>
-      {role ? `Esta sección es para ${role}. ` : "Esta sección requiere una cuenta. "}
-      <Link href="/login" className="font-semibold text-sync hover:underline">
-        Inicia sesión
-      </Link>{" "}
-      para continuar.
-    </Notice>
+    <Page>
+      <EmptyCard
+        title={role ? `Esta sección es para ${role}` : "Esta sección requiere una cuenta"}
+        text="Inicia sesión para continuar."
+        href="/login"
+        label="Iniciar sesión"
+      />
+    </Page>
   );
 }

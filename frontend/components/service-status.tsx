@@ -1,6 +1,6 @@
 "use client";
 
-import { Section } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { useApi } from "@/lib/use-api";
 import type { ServiceHealth } from "@/lib/types";
 
@@ -13,8 +13,8 @@ interface HealthReport {
 const LABEL: Record<string, string> = { ok: "Activo", degraded: "Degradado" };
 
 /**
- * Estado de los microservicios a traves del API Gateway. Solo se muestra en el panel
- * del organizador: es informacion tecnica, no para espectadores.
+ * Estado de los microservicios a través del API Gateway. Solo se muestra en el panel
+ * del organizador: es información técnica, no para espectadores.
  */
 export default function ServiceStatus() {
   const health = useApi<HealthReport>("/health/services");
@@ -24,37 +24,39 @@ export default function ServiceStatus() {
   const down = services.filter((s) => s.status !== "ok").length;
 
   return (
-    <Section
+    <Card
       id="estado"
       title="Estado del sistema"
-      description={
+      hint={
         health.data
           ? down > 0
             ? `${down} servicio(s) sin responder. En el plan gratuito de Render tardan cerca de un minuto en despertar.`
-            : `Los 9 servicios responden (consultado a las ${new Date(health.data.timestamp).toLocaleTimeString("es-CO")})`
+            : `Los ${services.length} servicios responden (consultado a las ${new Date(health.data.timestamp).toLocaleTimeString("es-CO")}).`
           : "Consultando a los microservicios..."
       }
       actions={
-        <button className="btn btn-ghost btn-sm" onClick={health.reload}>
+        <button type="button" className="btn btn-sm" onClick={health.reload}>
           Actualizar
         </button>
       }
     >
-      {health.error && <p className="text-sm text-error">{health.error}</p>}
-      <ul className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        {services.map((s) => (
-          <li key={s.key} className="rounded-md border border-line bg-surface-2 px-3 py-2 text-sm">
-            <span className="flex items-center gap-2">
-              <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${s.status === "ok" ? "bg-ok" : "bg-error"}`} />
-              <span className="font-semibold">{s.name}</span>
-            </span>
-            <span className={`text-xs ${s.status === "ok" ? "text-muted" : "text-error"}`}>
-              {LABEL[s.status] ?? "Sin respuesta"}
-              {s.status === "ok" && s.latencyMs ? ` · ${s.latencyMs} ms` : ""}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </Section>
+      {health.error && <p className="form-msg is-error">{health.error}</p>}
+      {services.length > 0 && (
+        <ul className="svc">
+          {services.map((s) => (
+            <li key={s.key}>
+              <b>
+                <span aria-hidden className={`dot${s.status === "ok" ? "" : " off"}`} />
+                {s.name}
+              </b>
+              <span className={s.status === "ok" ? undefined : "down"}>
+                {LABEL[s.status] ?? "Sin respuesta"}
+                {s.status === "ok" && s.latencyMs ? `, ${s.latencyMs} ms` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

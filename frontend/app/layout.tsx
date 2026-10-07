@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Archivo } from "next/font/google";
+import Footer from "@/components/footer";
 import KeepAwake from "@/components/keep-awake";
 import Nav from "@/components/nav";
 import "./globals.css";
 
-const barlow = Barlow({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-barlow" });
-const barlowCondensed = Barlow_Condensed({
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-barlow-condensed",
-});
+// Archivo con su eje de ancho: los títulos y las cifras usan la versión condensada
+const archivo = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-archivo" });
 
 export const metadata: Metadata = {
   title: { default: "SportsLeague", template: "%s | SportsLeague" },
@@ -17,13 +14,19 @@ export const metadata: Metadata = {
     "Calendario, marcador en vivo, tabla de posiciones y panel de organizadores de SportsLeague, ligas deportivas amateur.",
 };
 
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: "#0E1630",
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" className={`h-full antialiased ${barlow.variable} ${barlowCondensed.variable}`}>
-      <body className="min-h-full font-sans">
+    <html lang="es" className={archivo.variable}>
+      <body>
         <Nav />
         <KeepAwake />
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8">{children}</div>
+        {children}
+        <Footer />
       </body>
     </html>
   );

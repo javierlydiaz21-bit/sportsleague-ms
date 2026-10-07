@@ -40,6 +40,45 @@ export function useApi<T>(path: string | null) {
   };
 }
 
+/**
+ * Como useApi, pero con una carga propia que junta varias consultas. `key` identifica
+ * los datos: al cambiar se vuelve a cargar. Con key null no carga.
+ */
+export function useLoad<T>(key: string | null, load: () => Promise<T>) {
+  const [version, setVersion] = useState(0);
+  const [result, setResult] = useState<{ key: string | null; data: T | null; error: string }>({
+    key: null,
+    data: null,
+    error: "",
+  });
+
+  useEffect(() => {
+    if (!key) return;
+    let cancelled = false;
+    load()
+      .then((data) => {
+        if (!cancelled) setResult({ key, data, error: "" });
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setResult({ key, data: null, error: err.message });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // `load` cambia en cada render; los datos que usa quedan descritos por `key`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, version]);
+
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
+  const fresh = result.key === key;
+  return {
+    data: fresh ? result.data : null,
+    error: fresh ? result.error : "",
+    loading: Boolean(key) && !fresh,
+    reload,
+  };
+}
+
 /** Ejecuta una accion mostrando su resultado; evita dobles envios. */
 export function useAction() {
   const [busy, setBusy] = useState(false);
