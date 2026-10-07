@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import AuthPage from "@/components/auth-page";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Iniciar sesión" };
-
+/** Ruta anterior del inicio de sesión: ahora es /entrar, como en el diseño. */
 export default function LoginPage() {
-  return <AuthPage mode="login" />;
+  redirect("/entrar");
 }

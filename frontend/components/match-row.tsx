@@ -24,12 +24,12 @@ export function MatchTile({ match, home, away, href }: { match: MatchView; home:
         {match.status === "en_curso" && match.minute !== null && <span className="tile-min">{match.minute}&apos;</span>}
       </div>
       <div className="tile-row">
-        <Crest name={home} size={30} />
+        <Crest name={home} id={match.homeTeam} size={30} />
         <span>{home}</span>
         <b>{s?.home ?? ""}</b>
       </div>
       <div className="tile-row">
-        <Crest name={away} size={30} />
+        <Crest name={away} id={match.awayTeam} size={30} />
         <span>{away}</span>
         <b>{s?.away ?? ""}</b>
       </div>
@@ -55,11 +55,11 @@ export default function MatchRow({
     <Link className={`match-row${compact ? " compact" : ""}`} href={`/partidos/${match.id}`} aria-label={label(match, home, away)}>
       <span className="mr-home">
         <span>{home}</span>
-        <Crest name={home} size={28} />
+        <Crest name={home} id={match.homeTeam} size={28} />
       </span>
       <span className={`mr-score${s ? "" : " vs"}`}>{s ? `${s.home}–${s.away}` : "vs"}</span>
       <span className="mr-away">
-        <Crest name={away} size={28} />
+        <Crest name={away} id={match.awayTeam} size={28} />
         <span>{away}</span>
       </span>
       <span className="mr-meta">

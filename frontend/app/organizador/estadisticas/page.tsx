@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import StatisticsSection from "@/components/organizer/statistics";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Estadísticas" };
-
-export default function Page() {
-  return <StatisticsSection />;
+/** Ruta anterior del panel: ahora es /estadisticas, como en el diseño. */
+export default function OldRoute() {
+  redirect("/estadisticas");
 }

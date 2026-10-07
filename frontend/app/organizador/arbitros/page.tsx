@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import RefereesSection from "@/components/organizer/referees";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Árbitros" };
-
-export default function Page() {
-  return <RefereesSection />;
+/** Ruta anterior del panel: ahora es /arbitros, como en el diseño. */
+export default function OldRoute() {
+  redirect("/arbitros");
 }

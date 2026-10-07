@@ -19,8 +19,8 @@ export function FormGuide({ results }: { results: Result[] }) {
 }
 
 /**
- * Tabla de posiciones: el líder marcado en dorado, escudos, puntos en cifras
- * condensadas y, en la versión completa, la racha de los últimos 5 partidos.
+ * Tabla de posiciones del diseño (Statistics Service: GET /standings/{seasonId}).
+ * Compacta: #, equipo, PJ, DG y Pts; completa: además G, E y P.
  */
 export default function StandingsTable({
   rows,
@@ -35,8 +35,9 @@ export default function StandingsTable({
   highlight?: number[];
   compact?: boolean;
 }) {
+  if (!rows.length) return <p className="empty">Todavía no hay partidos en esta temporada.</p>;
   const name = (id: number) => names.get(id) ?? `Equipo ${id}`;
-  const dg = (n: number) => (n > 0 ? `+${n}` : String(n));
+  const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
   return (
     <div className="scroll">
       <table className="data">
@@ -44,58 +45,42 @@ export default function StandingsTable({
           <tr>
             <th>#</th>
             <th>Equipo</th>
-            <th className="num" title="Partidos jugados">
-              PJ
-            </th>
+            <th className="num">PJ</th>
             {!compact && (
               <>
-                <th className="num hide-sm" title="Ganados">
-                  G
-                </th>
-                <th className="num hide-sm" title="Empatados">
-                  E
-                </th>
-                <th className="num hide-sm" title="Perdidos">
-                  P
-                </th>
-                <th className="num hide-md" title="Goles a favor y en contra">
-                  Goles
-                </th>
+                <th className="num hide-sm">G</th>
+                <th className="num hide-sm">E</th>
+                <th className="num hide-sm">P</th>
               </>
             )}
-            <th className="num" title="Diferencia de goles">
-              DG
-            </th>
+            <th className="num">DG</th>
             <th className="num">Pts</th>
             {form && !compact && <th className="hide-md">Últimos 5</th>}
           </tr>
         </thead>
         <tbody>
-          {rows.map((s) => (
-            <tr key={s.teamId} className={highlight.includes(s.teamId) ? "hl" : undefined}>
-              <td className={`pos${s.position === 1 && s.played > 0 ? " lead" : ""}`}>{s.position}</td>
+          {rows.map((r) => (
+            <tr key={r.teamId} className={highlight.includes(r.teamId) ? "hl" : undefined}>
+              <td className="pos">{r.position}</td>
               <td>
                 <span className="team-cell">
-                  <Crest name={name(s.teamId)} size={28} />
-                  {name(s.teamId)}
+                  <Crest name={name(r.teamId)} id={r.teamId} size={28} />
+                  {name(r.teamId)}
                 </span>
               </td>
-              <td className="num">{s.played}</td>
+              <td className="num">{r.played}</td>
               {!compact && (
                 <>
-                  <td className="num hide-sm">{s.wins}</td>
-                  <td className="num hide-sm">{s.draws}</td>
-                  <td className="num hide-sm">{s.losses}</td>
-                  <td className="num hide-md text-muted">
-                    {s.goalsFor}:{s.goalsAgainst}
-                  </td>
+                  <td className="num hide-sm">{r.wins}</td>
+                  <td className="num hide-sm">{r.draws}</td>
+                  <td className="num hide-sm">{r.losses}</td>
                 </>
               )}
-              <td className="num">{dg(s.goalDifference)}</td>
-              <td className="num pts">{s.points}</td>
+              <td className="num">{signed(r.goalDifference)}</td>
+              <td className="num pts">{r.points}</td>
               {form && !compact && (
                 <td className="hide-md">
-                  <FormGuide results={form.get(s.teamId) ?? []} />
+                  <FormGuide results={form.get(r.teamId) ?? []} />
                 </td>
               )}
             </tr>

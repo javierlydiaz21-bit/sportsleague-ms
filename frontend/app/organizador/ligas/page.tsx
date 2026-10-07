@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import LeaguesSection from "@/components/organizer/leagues";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Ligas y reglamento" };
-
-export default function Page() {
-  return <LeaguesSection />;
+/** Ruta anterior del panel: ahora es /ligas, como en el diseño. */
+export default function OldRoute() {
+  redirect("/ligas");
 }

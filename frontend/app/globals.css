@@ -90,7 +90,6 @@
   input:not([type="checkbox"], [type="radio"]),
   select {
     font: 400 0.98rem var(--font);
-    min-height: 42px;
     padding: 10px 12px;
     border: 1px solid var(--line-2);
     border-radius: 10px;
@@ -444,6 +443,20 @@
   .menu-panel button:hover {
     background: var(--bg);
   }
+  .menu-league {
+    display: grid;
+    gap: 6px;
+    padding: 4px 12px 12px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .menu-league select {
+    padding: 7px 10px;
+    font-size: 0.88rem;
+  }
 
   /* ---------- Bandas en azul tinta con la cancha en trazo fino ---------- */
   .pitch {
@@ -696,7 +709,7 @@
   }
   .toolbar .fl select,
   .head .fl select {
-    min-width: 160px;
+    min-width: 140px;
   }
 
   /* ---------- Tablas y listas ---------- */
@@ -907,40 +920,6 @@
     font-stretch: 75%;
     text-align: right;
   }
-  .bars {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 10px;
-  }
-  .bars li {
-    display: grid;
-    grid-template-columns: minmax(8rem, 15rem) minmax(0, 1fr);
-    align-items: center;
-    gap: 12px;
-    font-size: 0.92rem;
-  }
-  .bars li > span:first-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .bars .bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-  .bars .bar i {
-    height: 14px;
-    border-radius: 0 4px 4px 0;
-    background: var(--green);
-  }
-  .bars li:hover .bar i {
-    background: var(--green-ink);
-  }
   .details-table {
     margin-top: 14px;
     font-size: 0.9rem;
@@ -953,19 +932,6 @@
   .details-table table {
     margin-top: 10px;
   }
-  .log {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 6px;
-    font-size: 0.94rem;
-  }
-  .log li {
-    border-left: 2px solid var(--green);
-    padding-left: 12px;
-  }
-
   /* ---------- Partidos ---------- */
   .tiles {
     display: grid;
@@ -1022,10 +988,9 @@
     background: var(--navy);
     color: var(--on-navy);
     border-radius: 18px;
-    padding: 20px 26px 22px;
+    padding: 20px 26px 28px;
   }
-  .board .chip-finalizado,
-  .board .chip-programado {
+  .board .chip-finalizado {
     background: rgba(238, 241, 247, 0.12);
     color: var(--on-navy);
   }
@@ -1279,6 +1244,44 @@
     color: var(--muted);
     font-size: 0.92rem;
   }
+  .rounds {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 2px 2px 12px;
+  }
+  .round {
+    flex: 0 0 230px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .round h3 {
+    font-size: 1.15rem;
+  }
+  .round time {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 2px 0 6px;
+  }
+  .round .m {
+    padding: 8px 0;
+    border-top: 1px solid var(--line);
+    font-size: 0.9rem;
+  }
+  .round .m div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+  }
+  .round .m small {
+    display: block;
+    color: var(--muted);
+    margin-top: 3px;
+  }
   .split {
     display: grid;
     grid-template-columns: minmax(0, 290px) minmax(0, 1fr);
@@ -1468,38 +1471,6 @@
     outline-offset: 2px;
   }
 
-  /* ---------- Estado de los servicios ---------- */
-  .svc {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 10px;
-  }
-  .svc li {
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 10px 14px;
-    background: var(--bg);
-  }
-  .svc b {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 0.94rem;
-  }
-  .svc span {
-    display: block;
-    margin-top: 2px;
-    font-size: 0.84rem;
-    color: var(--muted);
-  }
-  .svc span.down {
-    color: var(--red-ink);
-  }
-
   /* ---------- Selector de fechas y filtros ---------- */
   .dates {
     display: flex;
@@ -1628,7 +1599,7 @@
   }
   .kits {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 14px;
   }
   .kit {
@@ -1694,6 +1665,26 @@
     font-weight: 600;
     color: var(--ink-2);
     font-variant-numeric: tabular-nums;
+  }
+  .kit.public {
+    grid-column: span 2;
+    background: var(--navy);
+    border-color: var(--navy);
+    color: var(--on-navy);
+  }
+  .kit.public .kit-name {
+    color: #fff;
+  }
+  .kit.public .kit-desc {
+    color: var(--on-navy-muted);
+  }
+  .kit.public .kit-stat {
+    color: var(--gold);
+  }
+  .kit.public .kit-icon {
+    background: rgba(238, 241, 247, 0.08);
+    border-color: rgba(238, 241, 247, 0.18);
+    color: #fff;
   }
   .badge {
     display: inline-flex;
@@ -1826,7 +1817,7 @@
     border: 0;
     border-radius: 9px;
     background: none;
-    font: 600 0.92rem var(--font);
+    font: 600 0.92rem/1.6 var(--font);
     text-decoration: none;
     color: var(--muted);
     white-space: nowrap;
@@ -2010,6 +2001,14 @@
   }
 
   /* ---------- Responsive ---------- */
+  @media (max-width: 1100px) {
+    .kits {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .kit.public {
+      grid-column: span 3;
+    }
+  }
   @media (max-width: 980px) {
     .cols,
     .split {
@@ -2088,6 +2087,9 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
     }
+    .kit.public {
+      grid-column: span 2;
+    }
     .kit {
       min-height: 0;
       padding: 16px;
@@ -2111,10 +2113,6 @@
     }
     .lineups ul {
       margin-bottom: 18px;
-    }
-    .bars li {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 4px;
     }
   }
 }

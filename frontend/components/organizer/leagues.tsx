@@ -1,128 +1,159 @@
 "use client";
 
-import Link from "next/link";
+/*
+ * 1. Ligas y reglamento (diseño: viewLigas, ruta #/ligas). Por el API Gateway:
+ *   League Service .. GET  /leagues (useLeague)        temporadas, categorías y reglamento de la liga activa
+ *                     POST /leagues/{id}/seasons       nueva temporada
+ *                     POST /seasons/{id}/categories    nueva categoría
+ *                     PUT  /categories/{id}/rules      reglamento de una categoría
+ *                     POST /leagues                    otra liga (fuera del diseño: el registro crea espectadores)
+ *   Fixture Service . GET  /fixtures/{seasonId}        columna "Calendario" (jornadas de cada temporada)
+ *   Team Service .... GET  /teams?ids={ids}            categoría del calendario de cada temporada
+ */
+
 import { useState } from "react";
-import { Card, Field, FormMessage } from "@/components/ui";
-import { SPORT_LABEL, TIEBREAKER_LABEL, cap, shortDate } from "@/lib/services";
+import { useLeague } from "@/components/league-context";
+import { FormMessage } from "@/components/ui";
+import { SPORT_LABEL, TIEBREAKER_LABEL, cap, shortDate, utcDate } from "@/lib/services";
 import { api } from "@/lib/session";
-import { useAction } from "@/lib/use-api";
-import type { Category, League, Season } from "@/lib/types";
-import OrganizerSection from "./panel";
-import { addDays, flatten, today } from "./shared";
+import { useLoad } from "@/lib/use-api";
+import type { Category, League, Match, Season, Team } from "@/lib/types";
+import { PanelSection } from "./panel";
+
+type Msg = { tone: "ok" | "error"; text: string } | null;
+// Criterios de desempate del diseño
+const TIEBREAK: Record<string, string> = { diferencia_de_goles: "diferencia de goles", goles_a_favor: "goles a favor" };
 
 export default function LeaguesSection() {
-  return <OrganizerSection id="ligas">{(ctx) => <Leagues {...ctx} />}</OrganizerSection>;
+  const { league } = useLeague();
+  return (
+    <PanelSection
+      id="ligas"
+      intro={`${league ? `${league.name}. ` : ""}Define las temporadas, las categorías y cómo se cuentan los puntos.`}
+    >
+      <Leagues />
+    </PanelSection>
+  );
 }
 
-function Leagues({ leagues, reload }: { leagues: League[]; reload: () => void }) {
-  const { seasons, categories } = flatten(leagues);
-  const [editing, setEditing] = useState<number | null>(null);
-  const editingCategory = categories.find((c) => c.id === editing);
+function Leagues() {
+  const { leagues, league, reload, setLeague } = useLeague();
+  if (!leagues) return <p className="empty">Cargando...</p>;
+  if (!league) {
+    return (
+      <NewLeague
+        title="Todavía no tienes una liga"
+        onDone={(id) => {
+          setLeague(id);
+          reload();
+        }}
+      />
+    );
+  }
+  return (
+    <>
+      <LeagueBody key={league.id} league={league} reload={reload} />
+      <NewLeague
+        title="Otra liga"
+        onDone={(id) => {
+          setLeague(id);
+          reload();
+        }}
+      />
+    </>
+  );
+}
+
+/** Jornadas y categoría del calendario de cada temporada (columna "Calendario"). */
+async function loadCalendars(league: League) {
+  const lists = await Promise.all(league.seasons.map((s) => api<Match[]>("GET", `/fixtures/${s.id}`).catch(() => [] as Match[])));
+  const homes = [...new Set(lists.map((l) => l[0]?.homeTeam).filter((x): x is number => Boolean(x)))];
+  const teams = homes.length ? await api<Team[]>("GET", `/teams?ids=${homes.join(",")}`).catch(() => [] as Team[]) : [];
+  return new Map(
+    league.seasons.map((s, i) => {
+      const ms = lists[i];
+      return [s.id, { rounds: new Set(ms.map((m) => utcDate(m.scheduledAt))).size, categoryId: teams.find((t) => t.id === ms[0]?.homeTeam)?.categoryId }];
+    }),
+  );
+}
+
+function LeagueBody({ league, reload }: { league: League; reload: () => void }) {
+  const seasons = [...league.seasons].sort((a, b) => a.year - b.year || a.id - b.id);
+  const cats = league.categories;
+  const calendars = useLoad(`ligas:${league.id}:${seasons.map((s) => s.id).join(",")}`, () => loadCalendars(league));
+  const [editRule, setEditRule] = useState<number | null>(null);
+  const [ruleMsg, setRuleMsg] = useState<Msg>(null);
+  const editing = cats.find((c) => c.id === editRule);
+  const nextYear = seasons.length ? Math.max(...seasons.map((s) => s.year)) + 1 : new Date().getFullYear();
+
+  const calendarText = (s: Season) => {
+    const c = calendars.data?.get(s.id);
+    if (!c) return "";
+    if (!c.rounds) return "Sin calendario";
+    const name = cats.find((x) => x.id === c.categoryId)?.name;
+    return `${c.rounds} jornadas${name ? `, categoría ${name}` : ""}`;
+  };
 
   return (
     <>
-      <Card title="Ligas" hint="Cada liga tiene sus temporadas y sus categorías.">
-        {leagues.length > 0 ? (
-          <div className="scroll">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Liga</th>
-                  <th>Deporte</th>
-                  <th>Temporadas</th>
-                  <th className="num">Categorías</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leagues.map((l) => (
-                  <tr key={l.id}>
-                    <td>
-                      <b>{l.name}</b>
-                    </td>
-                    <td>{SPORT_LABEL[l.sport] ?? l.sport}</td>
-                    <td>
-                      {l.seasons.length
-                        ? l.seasons.map((s, i) => (
-                            <span key={s.id}>
-                              {i > 0 && ", "}
-                              <Link className="linkish" href={`/temporadas/${s.id}`}>
-                                {s.year}
-                              </Link>
-                            </span>
-                          ))
-                        : "Ninguna"}
-                    </td>
-                    <td className="num">{l.categories.length}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="empty">Todavía no hay ligas. Crea la primera aquí abajo.</p>
-        )}
-        <NewLeague onDone={reload} />
-      </Card>
-
-      <Card title="Temporadas">
-        {seasons.length > 0 ? (
+      <section className="card">
+        <h2>Temporadas</h2>
+        {seasons.length ? (
           <div className="scroll">
             <table className="data">
               <thead>
                 <tr>
                   <th>Año</th>
-                  {leagues.length > 1 && <th>Liga</th>}
                   <th>Inicio</th>
                   <th>Fin</th>
-                  <th />
+                  <th>Calendario</th>
                 </tr>
               </thead>
               <tbody>
                 {seasons.map((s) => (
                   <tr key={s.id}>
                     <td className="pos">{s.year}</td>
-                    {leagues.length > 1 && <td>{s.league.name}</td>}
                     <td>{shortDate(s.startDate)}</td>
                     <td>{shortDate(s.endDate)}</td>
-                    <td>
-                      <Link className="linkish" href={`/temporadas/${s.id}`}>
-                        Ver sitio público
-                      </Link>
-                    </td>
+                    <td>{calendarText(s)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="empty">Todavía no hay temporadas.</p>
+          <p className="empty">Todavía no hay temporadas. Crea la primera aquí abajo.</p>
         )}
-        {leagues.length > 0 ? <NewSeason leagues={leagues} onDone={reload} /> : <p className="empty">Para crear una temporada primero crea una liga.</p>}
-      </Card>
+        <NewSeason
+          league={league}
+          nextYear={nextYear}
+          onDone={() => {
+            reload();
+            calendars.reload();
+          }}
+        />
+      </section>
 
-      <Card
-        title="Categorías"
-        hint="El rango de edad se usa para validar a cada jugador al ficharlo. Sin reglamento no se puede generar el calendario."
-      >
-        {categories.length > 0 ? (
+      <section className="card">
+        <h2>Categorías</h2>
+        <p className="hint">El rango de edad se usa para validar a cada jugador al ficharlo. Sin reglamento no se puede generar el calendario.</p>
+        {cats.length ? (
           <div className="scroll">
             <table className="data">
               <thead>
                 <tr>
                   <th>Categoría</th>
-                  {leagues.length > 1 && <th>Liga</th>}
                   <th>Rango de edad</th>
                   <th>Reglamento</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {categories.map((c) => (
+                {cats.map((c) => (
                   <tr key={c.id}>
                     <td>
                       <b>{c.name}</b>
                     </td>
-                    {leagues.length > 1 && <td>{c.league.name}</td>}
                     <td>{c.ageRange} años</td>
                     <td>
                       {c.rule ? (
@@ -132,7 +163,14 @@ function Leagues({ leagues, reload }: { leagues: League[]; reload: () => void })
                       )}
                     </td>
                     <td>
-                      <button type="button" className="linkish" onClick={() => setEditing(c.id)}>
+                      <button
+                        className="linkish"
+                        type="button"
+                        onClick={() => {
+                          setRuleMsg(null);
+                          setEditRule(c.id);
+                        }}
+                      >
                         {c.rule ? "Editar reglamento" : "Definir reglamento"}
                       </button>
                     </td>
@@ -144,241 +182,282 @@ function Leagues({ leagues, reload }: { leagues: League[]; reload: () => void })
         ) : (
           <p className="empty">Todavía no hay categorías.</p>
         )}
-        {editingCategory && (
+        {editing ? (
           <RuleForm
-            key={editingCategory.id}
-            category={editingCategory}
-            onCancel={() => setEditing(null)}
-            onDone={reload}
+            key={editing.id}
+            category={editing}
+            msg={ruleMsg}
+            setMsg={setRuleMsg}
+            onCancel={() => {
+              setRuleMsg(null);
+              setEditRule(null);
+            }}
+            onDone={(text) => {
+              setEditRule(null);
+              setRuleMsg({ tone: "ok", text });
+              reload();
+            }}
           />
+        ) : (
+          <FormMessage message={ruleMsg} />
         )}
-        {seasons.length > 0 ? (
-          <NewCategory seasons={seasons} onDone={reload} />
+        {seasons.length ? (
+          <NewCategory
+            league={league}
+            seasons={seasons}
+            onDone={(c) => {
+              // Como en el diseño: la categoría nueva abre su reglamento
+              setEditRule(c.id);
+              setRuleMsg({ tone: "ok", text: `Categoría ${c.name} creada. Ahora define su reglamento.` });
+              reload();
+            }}
+          />
         ) : (
           <p className="empty">Para crear una categoría primero crea una temporada.</p>
         )}
-      </Card>
+      </section>
     </>
   );
 }
 
-const TIEBREAKERS = Object.entries(TIEBREAKER_LABEL);
+function NewSeason({ league, nextYear, onDone }: { league: League; nextYear: number; onDone: () => void }) {
+  const [msg, setMsg] = useState<Msg>(null);
+  const [busy, setBusy] = useState(false);
 
-function NewLeague({ onDone }: { onDone: () => void }) {
-  const { busy, message, run } = useAction();
-  const [name, setName] = useState("");
-  const [sport, setSport] = useState("futbol");
-  return (
-    <form
-      className="f"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const ok = await run(async () => {
-          const l = await api<League>("POST", "/leagues", { name, sport });
-          setName("");
-          return `Liga ${l.name} creada.`;
-        });
-        if (ok) onDone();
-      }}
-    >
-      <h3>Nueva liga</h3>
-      <div className="fgrid">
-        <Field label="Nombre">
-          <input required placeholder="Liga Municipal de Montería" value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label="Deporte">
-          <select value={sport} onChange={(e) => setSport(e.target.value)}>
-            {Object.entries(SPORT_LABEL).map(([v, label]) => (
-              <option key={v} value={v}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <button className="btn btn-blue" disabled={busy}>
-          Crear liga
-        </button>
-      </div>
-      <FormMessage message={message} />
-    </form>
-  );
-}
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const year = Number(fd.get("year"));
+    const start = String(fd.get("startDate"));
+    const end = String(fd.get("endDate"));
+    if (!(year >= 2000)) return setMsg({ tone: "error", text: "Escribe un año válido, por ejemplo 2027." });
+    if (!start || !end) return setMsg({ tone: "error", text: "Elige la fecha de inicio y la de fin." });
+    if (start >= end) return setMsg({ tone: "error", text: "La fecha de inicio debe ser anterior a la de fin." });
+    setBusy(true);
+    try {
+      // League Service: POST /leagues/{id}/seasons
+      await api<Season>("POST", `/leagues/${league.id}/seasons`, { year, startDate: start, endDate: end });
+      form.reset();
+      setMsg({ tone: "ok", text: `Temporada ${year} creada.` });
+      onDone();
+    } catch (err) {
+      setMsg({ tone: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
 
-function NewSeason({ leagues, onDone }: { leagues: League[]; onDone: () => void }) {
-  const { busy, message, run } = useAction();
-  const [leagueId, setLeagueId] = useState(String(leagues.at(-1)!.id));
-  const league = leagues.find((l) => String(l.id) === leagueId);
-  const nextYear = league?.seasons.length ? Math.max(...league.seasons.map((s) => s.year)) + 1 : new Date().getFullYear();
-  const [year, setYear] = useState("");
-  const [start, setStart] = useState(today());
-  const [end, setEnd] = useState(addDays(today(), 150));
   return (
-    <form
-      className="f"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const ok = await run(async () => {
-          if (start >= end) throw new Error("La fecha de inicio debe ser anterior a la de fin.");
-          const s = await api<Season>("POST", `/leagues/${leagueId}/seasons`, {
-            year: Number(year || nextYear),
-            startDate: start,
-            endDate: end,
-          });
-          setYear("");
-          return `Temporada ${s.year} creada.`;
-        });
-        if (ok) onDone();
-      }}
-    >
+    <form className="f" noValidate onSubmit={submit}>
       <h3>Nueva temporada</h3>
       <div className="fgrid">
-        {leagues.length > 1 && (
-          <Field label="Liga">
-            <select required value={leagueId} onChange={(e) => setLeagueId(e.target.value)}>
-              {leagues.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
-        <Field label="Año">
-          <input type="number" min={2000} placeholder={String(nextYear)} value={year} onChange={(e) => setYear(e.target.value)} />
-        </Field>
-        <Field label="Inicio">
-          <input type="date" required value={start} onChange={(e) => setStart(e.target.value)} />
-        </Field>
-        <Field label="Fin">
-          <input type="date" required value={end} onChange={(e) => setEnd(e.target.value)} />
-        </Field>
-        <button className="btn btn-blue" disabled={busy}>
+        <label className="fl">
+          Año
+          <input type="number" name="year" min={2000} defaultValue={nextYear} />
+        </label>
+        <label className="fl">
+          Inicio
+          <input type="date" name="startDate" />
+        </label>
+        <label className="fl">
+          Fin
+          <input type="date" name="endDate" />
+        </label>
+        <button className="btn btn-blue" type="submit" disabled={busy}>
           Crear temporada
         </button>
       </div>
-      <FormMessage message={message} />
+      <FormMessage message={msg} />
     </form>
   );
 }
 
-function NewCategory({ seasons, onDone }: { seasons: Array<Season & { league: League }>; onDone: () => void }) {
-  const { busy, message, run } = useAction();
-  const [seasonId, setSeasonId] = useState(String(seasons.at(-1)!.id));
-  const [name, setName] = useState("");
-  const [ageRange, setAgeRange] = useState("15-17");
-  const [pointsWin, setPointsWin] = useState("3");
-  const [pointsDraw, setPointsDraw] = useState("1");
-  const [tiebreaker, setTiebreaker] = useState("diferencia_de_goles");
-  const many = new Set(seasons.map((s) => s.league.id)).size > 1;
+function NewCategory({ seasons, onDone }: { league: League; seasons: Season[]; onDone: (c: Category) => void }) {
+  const [msg, setMsg] = useState<Msg>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const seasonId = Number(fd.get("seasonId"));
+    const name = String(fd.get("name")).trim();
+    const ar = String(fd.get("ageRange")).trim();
+    if (!name) return setMsg({ tone: "error", text: "Escribe el nombre de la categoría." });
+    if (!/^\d{1,2}-\d{1,2}$/.test(ar)) return setMsg({ tone: "error", text: "Escribe el rango de edad como mínimo-máximo, por ejemplo 15-17." });
+    const [min, max] = ar.split("-").map(Number);
+    if (min > max) return setMsg({ tone: "error", text: "En el rango de edad, la edad mínima no puede ser mayor que la máxima." });
+    setBusy(true);
+    try {
+      // League Service: POST /seasons/{id}/categories
+      const c = await api<Category>("POST", `/seasons/${seasonId}/categories`, { name, ageRange: ar });
+      form.reset();
+      setMsg(null);
+      onDone(c);
+    } catch (err) {
+      setMsg({ tone: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <form
-      className="f"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const ok = await run(async () => {
-          const [min, max] = ageRange.split("-").map(Number);
-          if (min > max) throw new Error("En el rango de edad, la edad mínima no puede ser mayor que la máxima.");
-          const c = await api<Category>("POST", `/seasons/${seasonId}/categories`, { name, ageRange });
-          await api("PUT", `/categories/${c.id}/rules`, {
-            pointsWin: Number(pointsWin),
-            pointsDraw: Number(pointsDraw),
-            tiebreakerCriteria: tiebreaker,
-          });
-          setName("");
-          return `Categoría ${c.name} creada con su reglamento.`;
-        });
-        if (ok) onDone();
-      }}
-    >
-      <h3>Nueva categoría y su reglamento</h3>
+    <form className="f" noValidate onSubmit={submit}>
+      <h3>Nueva categoría</h3>
       <div className="fgrid">
-        <Field label="Temporada">
-          <select required value={seasonId} onChange={(e) => setSeasonId(e.target.value)}>
+        <label className="fl">
+          Temporada
+          <select name="seasonId">
             {seasons.map((s) => (
               <option key={s.id} value={s.id}>
-                {many ? `${s.league.name} ${s.year}` : s.year}
+                {s.year}
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Nombre">
-          <input required placeholder="Sub-17" value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label="Rango de edad" hint="mínimo-máximo">
-          <input required pattern="\d{1,2}-\d{1,2}" placeholder="15-17" value={ageRange} onChange={(e) => setAgeRange(e.target.value)} />
-        </Field>
-        <Field label="Puntos por victoria">
-          <input type="number" min={0} required value={pointsWin} onChange={(e) => setPointsWin(e.target.value)} />
-        </Field>
-        <Field label="Puntos por empate">
-          <input type="number" min={0} required value={pointsDraw} onChange={(e) => setPointsDraw(e.target.value)} />
-        </Field>
-        <Field label="Criterio de desempate">
-          <select value={tiebreaker} onChange={(e) => setTiebreaker(e.target.value)}>
-            {TIEBREAKERS.map(([v, label]) => (
-              <option key={v} value={v}>
-                {cap(label)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <button className="btn btn-blue" disabled={busy}>
+        </label>
+        <label className="fl">
+          Nombre
+          <input name="name" placeholder="Sub-17" />
+        </label>
+        <label className="fl">
+          Rango de edad <small>mínimo-máximo</small>
+          <input name="ageRange" placeholder="15-17" />
+        </label>
+        <button className="btn btn-blue" type="submit" disabled={busy}>
           Crear categoría
         </button>
       </div>
-      <FormMessage message={message} />
+      <FormMessage message={msg} />
     </form>
   );
 }
 
-function RuleForm({ category, onCancel, onDone }: { category: Category; onCancel: () => void; onDone: () => void }) {
-  const { busy, message, run } = useAction();
-  const [pointsWin, setPointsWin] = useState(String(category.rule?.pointsWin ?? 3));
-  const [pointsDraw, setPointsDraw] = useState(String(category.rule?.pointsDraw ?? 1));
-  const [tiebreaker, setTiebreaker] = useState(category.rule?.tiebreakerCriteria ?? "diferencia_de_goles");
+function RuleForm({
+  category,
+  msg,
+  setMsg,
+  onCancel,
+  onDone,
+}: {
+  category: Category;
+  msg: Msg;
+  setMsg: (m: Msg) => void;
+  onCancel: () => void;
+  onDone: (text: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const r = category.rule;
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const pw = Number(fd.get("pointsWin"));
+    const pd = Number(fd.get("pointsDraw"));
+    const tb = String(fd.get("tiebreakerCriteria"));
+    if (!Number.isInteger(pw) || pw < 0 || !Number.isInteger(pd) || pd < 0) {
+      return setMsg({ tone: "error", text: "Los puntos deben ser números enteros desde 0." });
+    }
+    setBusy(true);
+    try {
+      // League Service: PUT /categories/{id}/rules
+      await api("PUT", `/categories/${category.id}/rules`, { pointsWin: pw, pointsDraw: pd, tiebreakerCriteria: tb });
+      onDone(`Reglamento de ${category.name} guardado. Las tablas de posiciones ya usan estos puntos.`);
+    } catch (err) {
+      setMsg({ tone: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <form
-      className="f"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const ok = await run(async () => {
-          await api("PUT", `/categories/${category.id}/rules`, {
-            pointsWin: Number(pointsWin),
-            pointsDraw: Number(pointsDraw),
-            tiebreakerCriteria: tiebreaker,
-          });
-          return "Reglamento guardado.";
-        });
-        if (ok) onDone();
-      }}
-    >
+    <form className="f" noValidate onSubmit={submit}>
       <h3>Reglamento de {category.name}</h3>
       <div className="fgrid">
-        <Field label="Puntos por victoria">
-          <input type="number" min={0} required autoFocus value={pointsWin} onChange={(e) => setPointsWin(e.target.value)} />
-        </Field>
-        <Field label="Puntos por empate">
-          <input type="number" min={0} required value={pointsDraw} onChange={(e) => setPointsDraw(e.target.value)} />
-        </Field>
-        <Field label="Criterio de desempate">
-          <select value={tiebreaker} onChange={(e) => setTiebreaker(e.target.value)}>
-            {TIEBREAKERS.map(([v, label]) => (
-              <option key={v} value={v}>
-                {cap(label)}
+        <label className="fl">
+          Puntos por victoria
+          <input type="number" name="pointsWin" min={0} defaultValue={r ? r.pointsWin : 3} autoFocus />
+        </label>
+        <label className="fl">
+          Puntos por empate
+          <input type="number" name="pointsDraw" min={0} defaultValue={r ? r.pointsDraw : 1} />
+        </label>
+        <label className="fl">
+          Criterio de desempate
+          <select name="tiebreakerCriteria" defaultValue={r?.tiebreakerCriteria}>
+            {Object.entries(TIEBREAK).map(([k, v]) => (
+              <option key={k} value={k}>
+                {cap(v)}
               </option>
             ))}
           </select>
-        </Field>
+        </label>
       </div>
       <div className="factions">
-        <button className="btn btn-blue" disabled={busy}>
+        <button className="btn btn-blue" type="submit" disabled={busy}>
           Guardar reglamento
         </button>
-        <button type="button" className="btn" onClick={onCancel}>
-          Cerrar
+        <button className="btn" type="button" onClick={onCancel}>
+          Cancelar
         </button>
       </div>
-      <FormMessage message={message} />
+      <FormMessage message={msg} />
     </form>
+  );
+}
+
+/** Otra liga: no está en el diseño (allí la liga se crea al registrarse). */
+function NewLeague({ title, onDone }: { title: string; onDone: (id: number) => void }) {
+  const [msg, setMsg] = useState<Msg>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const name = String(fd.get("leagueName")).trim();
+    const sport = String(fd.get("sport"));
+    if (!name) return setMsg({ tone: "error", text: "Escribe el nombre de tu liga." });
+    setBusy(true);
+    try {
+      // League Service: POST /leagues
+      const l = await api<League>("POST", "/leagues", { name, sport });
+      form.reset();
+      setMsg({ tone: "ok", text: `${l.name} creada. Ya es tu liga activa.` });
+      onDone(l.id);
+    } catch (err) {
+      setMsg({ tone: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>{title}</h2>
+      <p className="hint">Cada liga tiene sus temporadas y categorías. La liga activa se cambia desde el menú de la cuenta.</p>
+      <form noValidate onSubmit={submit}>
+        <div className="fgrid">
+          <label className="fl">
+            Nombre de la liga
+            <input name="leagueName" placeholder="Liga Municipal de Montería" />
+          </label>
+          <label className="fl">
+            Deporte
+            <select name="sport">
+              {Object.entries(SPORT_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="btn btn-blue" type="submit" disabled={busy}>
+            Crear liga
+          </button>
+        </div>
+        <FormMessage message={msg} />
+      </form>
+    </section>
   );
 }

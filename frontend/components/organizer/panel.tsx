@@ -1,38 +1,45 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useLeague } from "@/components/league-context";
 import { Band, LoginRequired, Notice, Page } from "@/components/ui";
 import { section, type SectionId } from "@/lib/sections";
 import { useSession } from "@/lib/session";
-import { useApi } from "@/lib/use-api";
-import type { League } from "@/lib/types";
 
 /**
- * Marco de cada sección del panel: exige sesión de organizador, muestra la banda de
- * la sección y entrega las ligas (League Service) a su contenido.
+ * Marco de cada sección del panel, como en el diseño (band + page): exige sesión de
+ * organizador (sin sesión lleva a /entrar) y muestra la banda azul de la sección.
+ * El contenido se dibuja solo con la sesión lista; la liga activa sale de useLeague.
  */
-export default function OrganizerSection({
+export function PanelSection({
   id,
+  intro,
   children,
 }: {
   id: Exclude<SectionId, "publico">;
-  children: (ctx: { leagues: League[]; reload: () => void }) => React.ReactNode;
+  intro: React.ReactNode;
+  children: React.ReactNode;
 }) {
   const { user, ready } = useSession();
-  const isOrganizer = user?.role === "organizador";
-  const leagues = useApi<League[]>(isOrganizer ? "/leagues" : null);
-  const s = section(id);
+  const router = useRouter();
+  const { error } = useLeague();
 
-  if (!ready) return null;
-  if (!isOrganizer) return <LoginRequired role="organizadores" />;
+  useEffect(() => {
+    if (ready && !user) router.replace("/entrar");
+  }, [ready, user, router]);
+
+  if (!ready || !user) return null;
+  if (user.role !== "organizador") return <LoginRequired role="organizadores" />;
 
   return (
     <>
-      <Band icon={id} title={s.label} intro={s.intro} />
+      <Band icon={id} title={section(id).label} intro={intro} />
       <Page>
-        {leagues.error && <Notice tone="error">{leagues.error}</Notice>}
-        {leagues.loading && <p className="empty">Cargando...</p>}
-        {leagues.data && children({ leagues: leagues.data, reload: leagues.reload })}
+        {error && <Notice tone="error">{error}</Notice>}
+        {children}
       </Page>
     </>
   );
 }
+

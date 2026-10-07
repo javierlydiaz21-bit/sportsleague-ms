@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import OrganizerHome from "@/components/organizer/home";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Panel de organizadores" };
-
-export default function Page() {
-  return <OrganizerHome />;
+/** Ruta anterior del panel: ahora es /inicio, como en el diseño. */
+export default function OldRoute() {
+  redirect("/inicio");
 }

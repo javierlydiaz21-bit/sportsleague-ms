@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { initials } from "@/components/crest";
 import { Icon, Logo, type IconId } from "@/components/icons";
+import { useLeague } from "@/components/league-context";
 import { SECTIONS } from "@/lib/sections";
 import { logout, useSession } from "@/lib/session";
 import type { Role } from "@/lib/types";
@@ -17,35 +19,15 @@ interface NavItem {
   match: (p: string) => boolean;
 }
 
-/** "Javierly Díaz" -> "JD" */
-const initialsOf = (name: string) =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-
-const isPublic =(p: string) => p === "/" || p.startsWith("/temporadas") || p.startsWith("/partidos");
+const isPublic = (p: string) => p === "/" || p.startsWith("/temporadas") || p.startsWith("/partidos");
 const avisos: NavItem = { href: "/notificaciones", label: "Avisos", icon: "avisos", match: (p) => p.startsWith("/notificaciones") };
 
-/** Secciones de la barra según el rol: el organizador ve su panel, los demás el sitio público. */
+/** Secciones de la barra según el rol: el organizador ve su panel (como en el diseño), los demás el sitio público. */
 function itemsFor(role: Role | undefined): NavItem[] {
   if (role === "organizador") {
     return [
-      { href: "/organizador", label: "Inicio", icon: "inicio", match: (p) => p === "/organizador" },
-      ...SECTIONS.map((s) => ({
-        href: s.href,
-        label: s.short,
-        icon: s.id as IconId,
-        match:
-          s.id === "publico"
-            ? (p: string) => p === "/" || p.startsWith("/temporadas")
-            : s.id === "partidos"
-              ? (p: string) => p.startsWith(s.href) || p.startsWith("/partidos")
-              : (p: string) => p.startsWith(s.href),
-      })),
+      { href: "/inicio", label: "Inicio", icon: "inicio", match: (p) => p === "/inicio" },
+      ...SECTIONS.map((s) => ({ href: s.href, label: s.short, icon: s.id as IconId, match: (p: string) => p.startsWith(s.href) })),
     ];
   }
   const partidos: NavItem = { href: "/", label: "Partidos", icon: "balon", match: isPublic };
@@ -62,6 +44,7 @@ function itemsFor(role: Role | undefined): NavItem[] {
 
 export default function Nav() {
   const { user, ready } = useSession();
+  const { leagues, league, setLeague } = useLeague();
   const pathname = usePathname();
   const router = useRouter();
   const menu = useRef<HTMLDetailsElement>(null);
@@ -78,13 +61,14 @@ export default function Nav() {
     return () => document.removeEventListener("click", close);
   }, []);
 
-  if (pathname === "/login" || pathname === "/registro") return null;
+  if (pathname === "/entrar" || pathname === "/registro") return null;
   const items = itemsFor(ready ? user?.role : undefined);
+  const organizer = user?.role === "organizador";
 
   return (
     <header className="topbar">
       <div className="wrap">
-        <Link className="logo" href={user?.role === "organizador" ? "/organizador" : "/"}>
+        <Link className="logo" href={organizer ? "/inicio" : "/"}>
           <Logo />
           SportsLeague
         </Link>
@@ -100,19 +84,33 @@ export default function Nav() {
         </nav>
         {ready && user && (
           <details className="menu" ref={menu}>
-            <summary aria-label={`Cuenta de ${user.name}`}>{initialsOf(user.name)}</summary>
+            <summary aria-label={`Cuenta de ${user.name}`}>{initials(user.name).slice(0, 2)}</summary>
             <div className="menu-panel">
               <p>
                 <b>{user.name}</b>
-                {ROLE_LABEL[user.role]} · {user.email}
+                {organizer ? (league?.name ?? "Sin liga") : `${ROLE_LABEL[user.role]} · ${user.email}`}
               </p>
-              <Link href="/notificaciones">Avisos</Link>
-              {user.role === "organizador" && <Link href="/">Ver sitio público</Link>}
+              {organizer && leagues && leagues.length > 1 && (
+                <label className="menu-league">
+                  Liga activa
+                  <select value={league?.id ?? ""} onChange={(e) => setLeague(Number(e.target.value))}>
+                    {[...leagues]
+                      .sort((a, b) => b.id - a.id)
+                      .map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                          {l.seasons.length ? `, ${l.seasons.map((s) => s.year).join(" y ")}` : ""} (#{l.id})
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
+              {organizer ? <Link href="/publico">Ver sitio público</Link> : <Link href="/notificaciones">Avisos</Link>}
               <button
                 type="button"
                 onClick={async () => {
                   await logout();
-                  router.push("/");
+                  router.push(organizer ? "/entrar" : "/");
                 }}
               >
                 Cerrar sesión
@@ -125,7 +123,7 @@ export default function Nav() {
             <Link href="/registro" className="btn btn-sm">
               Crear cuenta
             </Link>
-            <Link href="/login" className="btn btn-blue btn-sm">
+            <Link href="/entrar" className="btn btn-blue btn-sm">
               Iniciar sesión
             </Link>
           </div>

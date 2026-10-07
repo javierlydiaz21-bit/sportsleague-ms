@@ -1,50 +1,126 @@
 "use client";
 
+/*
+ * 3. Árbitros (diseño: viewArbitros, ruta #/arbitros). Por el API Gateway:
+ *   Referee Service .. GET  /referees                       árbitros (con su cantidad de asignaciones)
+ *                      POST /referees                       registrar árbitro
+ *                      PUT  /referees/{id}/availability     editar disponibilidad
+ *                      GET  /referees/{id}/assignments      asignación y confirmación de cada partido
+ *   Fixture Service .. GET  /fixtures/{seasonId}            próximos partidos de la liga activa
+ *   Team Service ..... GET  /teams?ids={ids}                nombres de los equipos
+ *   API Gateway ...... GET/POST /auth/users                 cuentas de acceso de los árbitros (fuera del diseño)
+ */
+
 import { useState } from "react";
-import { Card, EmptyCard, Field, FormMessage } from "@/components/ui";
+import { useLeague } from "@/components/league-context";
+import { EmptyCard, FormMessage, Notice } from "@/components/ui";
 import { shortDate } from "@/lib/services";
 import { api } from "@/lib/session";
-import { useAction, useApi } from "@/lib/use-api";
-import type { League, Referee, User } from "@/lib/types";
-import OrganizerSection from "./panel";
-import { DAYS, DAY_LABELS, dayNames, flatten, toggle, useAllMatches, useAssignments } from "./shared";
+import { useApi, useLoad } from "@/lib/use-api";
+import type { Assignment, League, Match, Referee, Team, User } from "@/lib/types";
+import { PanelSection } from "./panel";
+import { DAYS, DAY_LABELS, dayNames } from "./shared";
+
+type Msg = { tone: "ok" | "error"; text: string } | null;
 
 export default function RefereesSection() {
-  return <OrganizerSection id="arbitros">{({ leagues }) => <Referees leagues={leagues} />}</OrganizerSection>;
+  return (
+    <PanelSection
+      id="arbitros"
+      intro="Al publicar una jornada, cada partido recibe un árbitro de la misma zona, certificado en la categoría y disponible ese día."
+    >
+      <Referees />
+    </PanelSection>
+  );
 }
 
-function Referees({ leagues }: { leagues: League[] }) {
-  const { categories } = flatten(leagues);
-  const assignments = useAssignments();
-  const users = useApi<User[]>("/auth/users");
-  const matches = useAllMatches(leagues);
-  const [editing, setEditing] = useState<number | null>(null);
-  const { busy, message, run } = useAction();
+/** Árbitros de la liga, sus asignaciones y los próximos partidos. */
+async function loadReferees(league: League) {
+  const categoryIds = new Set(league.categories.map((c) => c.id));
+  const [all, fixtures] = await Promise.all([
+    api<Referee[]>("GET", "/referees"),
+    Promise.all(league.seasons.map((s) => api<Match[]>("GET", `/fixtures/${s.id}`).catch(() => [] as Match[]))),
+  ]);
+  const referees = all.filter((r) => r.categoriesCertified.some((c) => categoryIds.has(c)));
+  const lists = await Promise.all(
+    referees.map((r) => api<Assignment[]>("GET", `/referees/${r.id}/assignments`).catch(() => [] as Assignment[])),
+  );
+  const upcoming = fixtures
+    .flat()
+    .filter((m) => m.status === "programado" || m.status === "en_curso")
+    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt) || a.id - b.id);
+  const ids = [...new Set(upcoming.flatMap((m) => [m.homeTeam, m.awayTeam]))];
+  const teams = ids.length ? await api<Team[]>("GET", `/teams?ids=${ids.join(",")}`).catch(() => [] as Team[]) : [];
+  return {
+    referees,
+    byMatch: new Map(lists.flat().map((a) => [a.matchId, a])),
+    upcoming,
+    names: new Map(teams.map((t) => [t.id, t.name])),
+  };
+}
 
-  if (!categories.length) {
+const dayChecks = (selected: string[]) =>
+  DAYS.map((d, i) => (
+    <label key={d}>
+      <input type="checkbox" name="days" value={d} defaultChecked={selected.includes(d)} />
+      {DAY_LABELS[i]}
+    </label>
+  ));
+
+function Referees() {
+  const { leagues, league } = useLeague();
+  const data = useLoad(league ? `arbitros:${league.id}:${league.categories.length}:${league.seasons.length}` : null, () => loadReferees(league!));
+  const [availEdit, setAvailEdit] = useState<number | null>(null);
+  const [availMsg, setAvailMsg] = useState("");
+  const [flash, setFlash] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  if (!leagues) return <p className="empty">Cargando...</p>;
+  const cats = league?.categories ?? [];
+  if (!cats.length) {
     return (
       <EmptyCard
         title="Todavía no hay categorías"
         text="Los árbitros se certifican por categoría. Créala primero en Ligas y reglamento."
-        href="/organizador/ligas"
+        href="/ligas"
         label="Ir a Ligas y reglamento"
       />
     );
   }
+  const catNames = (ids: number[]) =>
+    ids
+      .map((id) => cats.find((c) => c.id === id)?.name)
+      .filter(Boolean)
+      .join(", ");
+  const refs = data.data?.referees ?? [];
+  const upcoming = data.data?.upcoming ?? [];
+  const name = (id: number) => data.data?.names.get(id) ?? `Equipo ${id}`;
 
-  const referees = assignments.data?.referees ?? [];
-  const accountOf = (refereeId: number) => users.data?.find((u) => u.refereeId === refereeId);
-  const categoryName = (id: number) => categories.find((c) => c.id === id)?.name ?? `#${id}`;
-  const name = (id: number) => matches.data?.names.get(id) ?? `Equipo ${id}`;
-  const upcoming = (matches.data?.matches ?? [])
-    .filter((m) => m.status === "programado" || m.status === "en_curso")
-    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt) || a.id - b.id);
+  async function saveAvailability(e: React.FormEvent<HTMLFormElement>, r: Referee) {
+    e.preventDefault();
+    const days = new FormData(e.currentTarget).getAll("days").map(String);
+    if (!days.length) return setAvailMsg("Elige al menos un día disponible.");
+    setBusy(true);
+    try {
+      // Referee Service: PUT /referees/{id}/availability
+      await api("PUT", `/referees/${r.id}/availability`, { availability: days });
+      setAvailEdit(null);
+      setFlash(`Disponibilidad del árbitro #${r.id} actualizada.`);
+      data.reload();
+    } catch (err) {
+      setAvailMsg((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
-      <Card title="Registrados">
-        {assignments.error && <p className="form-msg is-error">{assignments.error}</p>}
-        {referees.length > 0 ? (
+      {flash && <Notice tone="ok">{flash}</Notice>}
+      {data.error && <Notice tone="error">{data.error}</Notice>}
+      <section className="card">
+        <h2>Registrados</h2>
+        {refs.length ? (
           <div className="scroll">
             <table className="data">
               <thead>
@@ -54,56 +130,47 @@ function Referees({ leagues }: { leagues: League[] }) {
                   <th>Categorías</th>
                   <th>Disponible</th>
                   <th className="num">Partidos</th>
-                  <th className="hide-md">Cuenta</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {referees.map((r) => (
+                {refs.map((r) => (
                   <tr key={r.id}>
                     <td className="pos">#{r.id}</td>
                     <td>{r.zone}</td>
-                    <td>{r.categoriesCertified.map(categoryName).join(", ")}</td>
+                    <td>{catNames(r.categoriesCertified)}</td>
                     <td>
-                      {editing === r.id ? (
-                        <form
-                          className="inline-form checks"
-                          onSubmit={async (e) => {
-                            e.preventDefault();
-                            const days = new FormData(e.currentTarget).getAll("days").map(String);
-                            const ok = await run(async () => {
-                              if (!days.length) throw new Error("Elige al menos un día disponible.");
-                              await api("PUT", `/referees/${r.id}/availability`, { availability: days });
-                              return `Disponibilidad del árbitro #${r.id} actualizada.`;
-                            });
-                            if (ok) {
-                              setEditing(null);
-                              assignments.reload();
-                            }
-                          }}
-                        >
-                          {DAYS.map((d, i) => (
-                            <label key={d}>
-                              <input type="checkbox" name="days" value={d} defaultChecked={r.availability.includes(d)} />
-                              {DAY_LABELS[i]}
-                            </label>
-                          ))}
-                          <button className="btn btn-blue btn-sm" disabled={busy}>
+                      {availEdit === r.id ? (
+                        <form className="inline-form checks" noValidate onSubmit={(e) => saveAvailability(e, r)}>
+                          {dayChecks(r.availability)}
+                          <button className="btn btn-blue btn-sm" type="submit" disabled={busy}>
                             Guardar
                           </button>
-                          <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>
+                          <button className="btn btn-sm" type="button" onClick={() => setAvailEdit(null)}>
                             Cancelar
                           </button>
+                          {availMsg && (
+                            <p className="form-msg is-error" role="alert">
+                              {availMsg}
+                            </p>
+                          )}
                         </form>
                       ) : (
                         dayNames(r.availability)
                       )}
                     </td>
                     <td className="num">{r._count?.assignments ?? 0}</td>
-                    <td className="hide-md text-muted">{accountOf(r.id)?.email ?? "Sin cuenta"}</td>
                     <td>
-                      {editing !== r.id && (
-                        <button type="button" className="linkish" onClick={() => setEditing(r.id)}>
+                      {availEdit !== r.id && (
+                        <button
+                          className="linkish"
+                          type="button"
+                          onClick={() => {
+                            setFlash("");
+                            setAvailMsg("");
+                            setAvailEdit(r.id);
+                          }}
+                        >
                           Editar disponibilidad
                         </button>
                       )}
@@ -114,21 +181,15 @@ function Referees({ leagues }: { leagues: League[] }) {
             </table>
           </div>
         ) : (
-          <p className="empty">{assignments.loading ? "Cargando..." : "Todavía no hay árbitros registrados."}</p>
+          <p className="empty">{data.loading ? "Cargando..." : "Todavía no hay árbitros registrados en las categorías de esta liga."}</p>
         )}
-        <FormMessage message={message} />
-        <NewReferee
-          categories={categories}
-          many={leagues.length > 1}
-          onDone={() => {
-            assignments.reload();
-            users.reload();
-          }}
-        />
-      </Card>
+        <NewReferee league={league!} onDone={data.reload} />
+      </section>
 
-      <Card title="Asignaciones de los próximos partidos" hint="Cada árbitro confirma su asignación desde su app.">
-        {upcoming.length > 0 ? (
+      <section className="card">
+        <h2>Asignaciones de los próximos partidos</h2>
+        <p className="hint">Cada árbitro confirma su asignación desde su app.</p>
+        {upcoming.length ? (
           <div className="scroll">
             <table className="data">
               <thead>
@@ -142,10 +203,10 @@ function Referees({ leagues }: { leagues: League[] }) {
               </thead>
               <tbody>
                 {upcoming.map((m) => {
-                  const a = assignments.data?.byMatch.get(m.id);
+                  const a = data.data?.byMatch.get(m.id);
                   return (
                     <tr key={m.id}>
-                      <td className="whitespace-nowrap">{shortDate(m.scheduledAt)}</td>
+                      <td>{shortDate(m.scheduledAt)}</td>
                       <td>
                         {name(m.homeTeam)} contra {name(m.awayTeam)}
                       </td>
@@ -165,96 +226,164 @@ function Referees({ leagues }: { leagues: League[] }) {
             </table>
           </div>
         ) : (
-          <p className="empty">{matches.loading ? "Cargando..." : "No hay partidos programados."}</p>
+          <p className="empty">{data.loading ? "Cargando..." : "No hay partidos programados."}</p>
         )}
-      </Card>
+      </section>
+
+      <RefereeAccount referees={refs} />
     </>
   );
 }
 
-function NewReferee({
-  categories,
-  many,
-  onDone,
-}: {
-  categories: ReturnType<typeof flatten>["categories"];
-  many: boolean;
-  onDone: () => void;
-}) {
-  const { busy, message, run } = useAction();
-  const [zone, setZone] = useState("monteria-norte");
-  const [certified, setCertified] = useState<number[]>([]);
-  const [days, setDays] = useState<string[]>(["sabado", "domingo"]);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+function NewReferee({ league, onDone }: { league: League; onDone: () => void }) {
+  const [msg, setMsg] = useState<Msg>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const zone = String(fd.get("zone")).trim();
+    const cats = fd.getAll("categories").map(Number);
+    const days = fd.getAll("days").map(String);
+    if (!zone) return setMsg({ tone: "error", text: "Escribe la zona del árbitro." });
+    if (!cats.length) return setMsg({ tone: "error", text: "Elige al menos una categoría certificada." });
+    if (!days.length) return setMsg({ tone: "error", text: "Elige al menos un día disponible." });
+    setBusy(true);
+    try {
+      // Referee Service: POST /referees
+      const r = await api<Referee>("POST", "/referees", { zone, categoriesCertified: cats, availability: days });
+      form.reset();
+      setMsg({ tone: "ok", text: `Árbitro #${r.id} registrado. Recibirá partidos de las jornadas que se publiquen.` });
+      onDone();
+    } catch (err) {
+      setMsg({ tone: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <form
-      className="f"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const ok = await run(async () => {
-          if (certified.length === 0) throw new Error("Elige al menos una categoría certificada.");
-          if (days.length === 0) throw new Error("Elige al menos un día disponible.");
-          const r = await api<Referee>("POST", "/referees", { zone, categoriesCertified: certified, availability: days });
-          if (email) {
-            await api("POST", "/auth/users", { name: name || `Árbitro ${r.id}`, email, password, role: "arbitro", refereeId: r.id });
-            return `Árbitro #${r.id} registrado con la cuenta ${email}. Recibirá partidos de las jornadas que se publiquen.`;
-          }
-          return `Árbitro #${r.id} registrado (sin cuenta de acceso). Recibirá partidos de las jornadas que se publiquen.`;
-        });
-        if (ok) {
-          setEmail("");
-          setPassword("");
-          setName("");
-          onDone();
-        }
-      }}
-    >
+    <form className="f" noValidate onSubmit={submit}>
       <h3>Registrar árbitro</h3>
       <div className="fgrid">
-        <Field label="Zona">
-          <input required value={zone} onChange={(e) => setZone(e.target.value)} />
-        </Field>
+        <label className="fl">
+          Zona
+          <input name="zone" defaultValue="monteria-norte" />
+        </label>
         <fieldset className="checks">
           <legend>Categorías certificadas</legend>
-          {categories.map((c) => (
+          {league.categories.map((c) => (
             <label key={c.id}>
-              <input type="checkbox" checked={certified.includes(c.id)} onChange={() => setCertified(toggle(certified, c.id))} />
+              <input type="checkbox" name="categories" value={c.id} />
               {c.name}
-              {many && <small>{c.league.name}</small>}
             </label>
           ))}
         </fieldset>
         <fieldset className="checks">
           <legend>Días disponibles</legend>
-          {DAYS.map((d, i) => (
-            <label key={d}>
-              <input type="checkbox" checked={days.includes(d)} onChange={() => setDays(toggle(days, d))} />
-              {DAY_LABELS[i]}
-            </label>
-          ))}
+          {dayChecks(["sabado", "domingo"])}
         </fieldset>
-        <p className="full text-sm text-muted">
-          Cuenta de acceso (opcional): con ella el árbitro confirma sus partidos y registra los eventos desde la app.
-        </p>
-        <Field label="Nombre">
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label="Correo">
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <Field label="Contraseña" hint="mínimo 8 caracteres">
-          <input type="password" minLength={8} required={Boolean(email)} value={password} onChange={(e) => setPassword(e.target.value)} />
-        </Field>
       </div>
       <div className="factions">
-        <button className="btn btn-blue" disabled={busy}>
+        <button className="btn btn-blue" type="submit" disabled={busy}>
           Registrar árbitro
         </button>
       </div>
-      <FormMessage message={message} />
+      <FormMessage message={msg} />
     </form>
+  );
+}
+
+/** Cuenta de acceso de un árbitro (fuera del diseño): con ella confirma sus partidos y registra los eventos. */
+function RefereeAccount({ referees }: { referees: Referee[] }) {
+  // API Gateway: GET /auth/users
+  const users = useApi<User[]>("/auth/users");
+  const [msg, setMsg] = useState<Msg>(null);
+  const [busy, setBusy] = useState(false);
+  const accountOf = (id: number) => users.data?.find((u) => u.refereeId === id);
+  const without = referees.filter((r) => !accountOf(r.id));
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const refereeId = Number(fd.get("refereeId"));
+    const name = String(fd.get("name")).trim();
+    const email = String(fd.get("email")).trim().toLowerCase();
+    const password = String(fd.get("password"));
+    if (!refereeId) return setMsg({ tone: "error", text: "Elige el árbitro." });
+    if (!name) return setMsg({ tone: "error", text: "Escribe el nombre del árbitro." });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setMsg({ tone: "error", text: "Escribe un correo válido, por ejemplo nombre@correo.com." });
+    if (password.length < 8) return setMsg({ tone: "error", text: "La contraseña debe tener al menos 8 caracteres." });
+    setBusy(true);
+    try {
+      // API Gateway: POST /auth/users (rol árbitro, enlazado a su id en el Referee Service)
+      await api("POST", "/auth/users", { name, email, password, role: "arbitro", refereeId });
+      form.reset();
+      setMsg({ tone: "ok", text: `Cuenta creada: el árbitro #${refereeId} entra con ${email}.` });
+      users.reload();
+    } catch (err) {
+      setMsg({ tone: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>Cuentas de los árbitros</h2>
+      <p className="hint">
+        Con su cuenta, cada árbitro confirma sus partidos y registra goles, tarjetas y cambios.
+        {users.data && referees.some((r) => accountOf(r.id)) && (
+          <>
+            {" "}
+            Ya tienen cuenta:{" "}
+            {referees
+              .filter((r) => accountOf(r.id))
+              .map((r) => `#${r.id} (${accountOf(r.id)!.email})`)
+              .join(", ")}
+            .
+          </>
+        )}
+      </p>
+      {without.length ? (
+        <form noValidate onSubmit={submit}>
+          <div className="fgrid">
+            <label className="fl">
+              Árbitro
+              <select name="refereeId">
+                {without.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    #{r.id}, {r.zone}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="fl">
+              Nombre
+              <input name="name" autoComplete="off" />
+            </label>
+            <label className="fl">
+              Correo
+              <input type="email" name="email" autoComplete="off" />
+            </label>
+            <label className="fl">
+              Contraseña <small>mínimo 8 caracteres</small>
+              <input type="password" name="password" autoComplete="new-password" />
+            </label>
+            <button className="btn btn-blue" type="submit" disabled={busy}>
+              Crear cuenta
+            </button>
+          </div>
+          <FormMessage message={msg} />
+        </form>
+      ) : (
+        <>
+          <p className="empty">{referees.length ? "Todos los árbitros ya tienen cuenta." : "Registra un árbitro para crearle su cuenta."}</p>
+          <FormMessage message={msg} />
+        </>
+      )}
+    </section>
   );
 }

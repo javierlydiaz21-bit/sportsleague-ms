@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import MatchesSection from "@/components/organizer/matches";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Partidos y actas" };
-
-export default function Page() {
-  return <MatchesSection />;
+/** Ruta anterior del panel: ahora es /partidos, como en el diseño. */
+export default function OldRoute() {
+  redirect("/partidos");
 }

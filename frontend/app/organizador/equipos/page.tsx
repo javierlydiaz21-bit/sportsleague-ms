@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import TeamsSection from "@/components/organizer/teams";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Equipos y jugadores" };
-
-export default function Page() {
-  return <TeamsSection />;
+/** Ruta anterior del panel: ahora es /equipos, como en el diseño. */
+export default function OldRoute() {
+  redirect("/equipos");
 }

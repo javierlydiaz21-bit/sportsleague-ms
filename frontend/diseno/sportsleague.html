@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SportsLeague</title>
+<!--
+  SPORTSLEAGUE: toda la plataforma en una sola página (registro, inicio y las 7 secciones).
+  Rutas internas: #/registro, #/entrar, #/inicio, #/ligas, #/equipos, #/arbitros, #/calendario,
+                  #/partidos(/id), #/estadisticas, #/publico(/calendario | /tabla | /partido/id)
+  Bloques del archivo:
+    1. Estilos: sistema visual "liga oficial" (variables de color y tipografía en :root).
+    2. Datos: una colección por cada tabla del documento de arquitectura y las reglas de negocio
+       (elegibilidad, calendario, asignación de árbitros, tabla de posiciones). Aquí se conectan los endpoints reales.
+    3. Aplicación: enrutador, íconos de sección, piezas de interfaz y una vista por sección (cada una indica su microservicio).
+  Datos de ejemplo ficticios; se guardan en el navegador (localStorage).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap" rel="stylesheet" />
+<style>
+/* ===== SportsLeague: estilo "liga oficial" ===== */
+:root {
+  --bg: #F5F6F8;
+  --surface: #FFFFFF;
+  --ink: #0E1630;          /* azul tinta: encabezados y texto */
+  --ink-2: #39425A;
+  --muted: #6A7287;
+  --line: #E4E7ED;
+  --line-2: #D2D7E0;
+  --navy: #0E1630;
+  --on-navy: #EEF1F7;
+  --on-navy-muted: #A3ABC2;
+  --green: #0E7A55;        /* verde cancha: acciones y estados positivos */
+  --green-ink: #0A5C40;
+  --green-soft: #E4F2EC;
+  --gold: #B58A2E;         /* dorado trofeo: lo destacado */
+  --gold-soft: #F5EEDC;
+  --amber: #D99A12;
+  --amber-soft: #FBF0D6;
+  --red: #C2323B;
+  --red-soft: #FAE6E7;
+  --font: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Diseño claro a propósito; respeta las zonas seguras de los celulares */
+  color-scheme: light; box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+html, body { margin: 0; }
+body { font: 400 15.5px/1.6 var(--font); color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { font-family: var(--font); font-stretch: 72%; font-weight: 700; letter-spacing: -.005em; line-height: 1.04; margin: 0; }
+p { margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+.scroll { overflow-x: auto; }
+.empty { color: var(--muted); padding: 8px 0; }
+.num-font { font-stretch: 75%; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---------- Botones ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 .94rem var(--font); padding: 10px 18px;
+       border-radius: 10px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); text-decoration: none; cursor: pointer;
+       white-space: nowrap; transition: background .15s, border-color .15s; }
+.btn:hover { border-color: var(--ink-2); }
+.btn-blue { background: var(--navy); border-color: var(--navy); color: #fff; }
+.btn-blue:hover { background: #1C2747; border-color: #1C2747; }
+.btn-yellow { background: var(--green); border-color: var(--green); color: #fff; }
+.btn-yellow:hover { background: var(--green-ink); border-color: var(--green-ink); }
+.btn-sm { padding: 6px 12px; font-size: .86rem; border-radius: 8px; }
+.btn-block { width: 100%; padding: 12px 18px; }
+.linkish { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--green); cursor: pointer; text-decoration: underline; text-decoration-color: rgba(14, 122, 85, .35); text-underline-offset: 3px; }
+.linkish:hover { text-decoration-color: currentColor; }
+
+/* ---------- Escudos y estados ---------- */
+.crest { width: var(--s, 32px); height: var(--s, 32px); flex: none; border-radius: 50%; display: inline-grid; place-items: center;
+         font: 700 calc(var(--s, 32px) * .34) / 1 var(--font); font-stretch: 75%; letter-spacing: .02em; color: var(--c2); background: var(--c1);
+         box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .28), 0 0 0 1px rgba(14, 22, 48, .08); }
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 600 .76rem/1 var(--font); padding: 5px 9px; border-radius: 999px; white-space: nowrap; background: #EDEFF3; color: var(--ink-2); }
+.chip-en_curso { background: var(--amber-soft); color: #7A5306; }
+.chip-en_curso i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: pulse 1.4s infinite; }
+.chip-finalizado { background: #E6E9F0; color: var(--ink); }
+.chip-suspendido { background: var(--red-soft); color: #8F1F27; }
+@keyframes pulse { 50% { opacity: .3; } }
+.elig { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.elig-elegible { background: var(--green-soft); color: var(--green-ink); }
+.elig-no_elegible { background: var(--red-soft); color: #8F1F27; }
+.elig-pendiente { background: var(--amber-soft); color: #7A5306; }
+
+/* ---------- Íconos ---------- */
+.ico { width: 18px; height: 18px; flex: none; display: grid; place-items: center; }
+.ico svg, .kit-icon svg, .band-icon svg, .feat svg { width: 100%; height: 100%; display: block; }
+
+/* ---------- Barra superior ---------- */
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: rgba(255, 255, 255, .94); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
+.topbar .wrap { display: flex; align-items: center; gap: 22px; min-height: 64px; max-width: 1320px; }
+.logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font: 700 1.3rem/1 var(--font); font-stretch: 75%; letter-spacing: .005em; flex: none; }
+.logo svg { width: 30px; height: 30px; flex: none; }
+.squad { display: flex; gap: 2px; overflow-x: auto; flex: 1; align-self: stretch; scrollbar-width: none; }
+.squad a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 500; font-size: .9rem; color: var(--muted); padding: 0 11px;
+           border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.squad a:hover { color: var(--ink); }
+.squad a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--green); font-weight: 600; }
+.squad a[aria-current="page"] .ico { color: var(--green); }
+.menu { position: relative; flex: none; }
+.menu summary { list-style: none; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: #fff;
+                display: grid; place-items: center; font: 700 .82rem/1 var(--font); letter-spacing: .03em; }
+.menu summary::-webkit-details-marker { display: none; }
+.menu-panel { position: absolute; right: 0; top: 46px; width: 260px; background: #fff; border: 1px solid var(--line); border-radius: 14px;
+              box-shadow: 0 18px 40px -18px rgba(14, 22, 48, .35); padding: 6px; display: grid; }
+.menu-panel p { padding: 10px 12px 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px; font-size: .86rem; color: var(--muted); }
+.menu-panel p b { display: block; font-size: .98rem; color: var(--ink); }
+.menu-panel a, .menu-panel button { text-align: left; text-decoration: none; padding: 9px 12px; border-radius: 8px; border: 0; background: none; font: 500 .92rem var(--font); color: var(--ink); cursor: pointer; }
+.menu-panel a:hover, .menu-panel button:hover { background: var(--bg); }
+
+/* ---------- Bandas en azul tinta con la cancha en trazo fino ---------- */
+.pitch { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; fill: none; stroke: rgba(238, 241, 247, .13); stroke-width: 1.2;
+         -webkit-mask-image: linear-gradient(90deg, transparent 15%, #000 70%); mask-image: linear-gradient(90deg, transparent 15%, #000 70%); }
+.band, .hello, .pub-head { position: relative; overflow: hidden; background: var(--navy); color: var(--on-navy); }
+.band .wrap { position: relative; display: flex; align-items: center; gap: 22px; padding-top: 44px; padding-bottom: 38px; }
+.band-icon { width: 56px; height: 56px; flex: none; border-radius: 14px; background: rgba(238, 241, 247, .08); border: 1px solid rgba(238, 241, 247, .16);
+             color: #fff; padding: 14px; }
+.band h1 { font-size: clamp(2.4rem, 4.6vw, 3.6rem); color: #fff; }
+.band p { margin-top: 10px; font-size: 1.04rem; color: var(--on-navy-muted); max-width: 64ch; }
+
+/* ---------- Contenido ---------- */
+main.page { padding: 36px 0 96px; }
+.stack > * + * { margin-top: 24px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px 28px; }
+.card > h2, .head h2 { font-size: 1.7rem; }
+.card .hint { color: var(--muted); margin-top: 6px; max-width: 70ch; }
+.card > h2 + *, .card > .hint + *, .card > .head + * { margin-top: 18px; }
+.head { display: flex; justify-content: space-between; align-items: end; gap: 12px 20px; flex-wrap: wrap; }
+.head p { color: var(--muted); }
+.head a { color: var(--green); font-weight: 600; text-decoration: none; font-size: .92rem; }
+.head a:hover { text-decoration: underline; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.flash { padding: 13px 16px; border-radius: 12px; background: var(--green-soft); border: 1px solid #BFE0D2; color: var(--green-ink); font-weight: 500; }
+.form-msg:empty { display: none; }
+.form-msg { margin-top: 12px; padding: 10px 14px; border-radius: 10px; font-weight: 500; font-size: .94rem; }
+.form-msg.is-ok { background: var(--green-soft); color: var(--green-ink); }
+.form-msg.is-error { background: var(--red-soft); color: #8F1F27; }
+
+/* ---------- Formularios ---------- */
+.f { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--line); }
+.f h3 { font-size: 1.25rem; margin-bottom: 14px; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 16px; align-items: end; }
+.fl { display: grid; gap: 6px; font-weight: 600; font-size: .86rem; color: var(--ink-2); }
+.fl small { font-weight: 400; color: var(--muted); }
+input, select { font: 400 .98rem var(--font); padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 10px; background: #fff; color: var(--ink); width: 100%; transition: border-color .15s, box-shadow .15s; }
+input:focus, select:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(14, 122, 85, .16); }
+fieldset.checks { border: 0; margin: 0; padding: 0; grid-column: 1 / -1; }
+.checks legend { font-weight: 600; font-size: .86rem; color: var(--ink-2); padding: 0; margin-bottom: 8px; }
+.checks label { display: inline-flex; align-items: center; gap: 7px; margin: 0 16px 8px 0; font-weight: 400; }
+.checks input { width: 16px; height: 16px; accent-color: var(--green); }
+.factions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inline-form input, .inline-form select { width: auto; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }
+.toolbar .fl select, .head .fl select { min-width: 140px; }
+
+/* ---------- Tablas y listas ---------- */
+table.data { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.data th { text-align: left; font-weight: 600; font-size: .78rem; letter-spacing: .02em; color: var(--muted); padding: 0 10px 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+.data td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.data tr:last-child td { border-bottom: 0; }
+.data tbody tr:hover td { background: #FAFBFC; }
+.data .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data .pts { font: 700 1.2rem/1 var(--font); font-stretch: 75%; }
+.data .pos { font: 700 1.05rem/1 var(--font); font-stretch: 75%; color: var(--muted); }
+.team-cell { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.rule-note { margin-top: 14px; font-size: .86rem; color: var(--muted); }
+.rank { list-style: none; margin: 0; padding: 0; }
+.rank li { display: grid; grid-template-columns: 22px auto 1fr auto; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.rank li:last-child { border-bottom: 0; }
+.rank .n { font: 700 1rem/1 var(--font); font-stretch: 75%; color: var(--muted); }
+.rank .who b { display: block; font-weight: 600; }
+.rank .who span { font-size: .84rem; color: var(--muted); }
+.rank .val { font: 700 1.5rem/1 var(--font); font-stretch: 72%; }
+.rank li:first-child .val { color: var(--gold); }
+.notes { list-style: none; margin: 0; padding: 0; }
+.notes li { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 3px; }
+.notes li:last-child { border-bottom: 0; }
+.notes .meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: .82rem; color: var(--muted); }
+.notes .kind { font-weight: 600; color: var(--ink-2); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+.stat { padding: 20px 26px 22px; }
+.stat + .stat { border-left: 1px solid var(--line); }
+.stat b { display: block; font: 700 2.5rem/1 var(--font); font-stretch: 72%; font-variant-numeric: tabular-nums; }
+.stat span { display: block; margin-top: 8px; color: var(--muted); font-size: .92rem; }
+.trends { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); column-gap: 32px; }
+.trend { display: grid; grid-template-columns: auto minmax(0, 1fr) 90px 28px; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); font-weight: 500; }
+.trend em { font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trend svg { width: 90px; height: 28px; }
+.trend b { font: 700 1.15rem/1 var(--font); font-stretch: 75%; text-align: right; }
+
+/* ---------- Partidos ---------- */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 14px; }
+.tile { display: block; text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 15px; transition: border-color .15s; }
+.tile:hover { border-color: var(--ink-2); }
+.tile-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.tile-min { font: 700 1.1rem/1 var(--font); font-stretch: 75%; color: var(--gold); font-variant-numeric: tabular-nums; }
+.tile-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 5px 0; font-weight: 500; }
+.tile-row b { font: 700 1.7rem/1 var(--font); font-stretch: 72%; font-variant-numeric: tabular-nums; }
+.tile-venue { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: .84rem; color: var(--muted); }
+.board { position: relative; overflow: hidden; background: var(--navy); color: var(--on-navy); border-radius: 18px; padding: 20px 26px 28px; }
+.board .chip-finalizado { background: rgba(238, 241, 247, .12); color: var(--on-navy); }
+.board-top { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--on-navy-muted); font-size: .92rem; }
+.board-score { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; margin-top: 22px; }
+.board-side { display: grid; justify-items: center; gap: 12px; text-align: center; font-weight: 600; font-size: 1.02rem; color: #fff; }
+.board-digits { font: 700 clamp(3.4rem, 8vw, 5.2rem)/1 var(--font); font-stretch: 70%; color: #fff; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.board-clock { display: block; text-align: center; font: 700 1.3rem/1 var(--font); font-stretch: 75%; color: var(--gold); margin-top: 8px; }
+.match-row { display: grid; grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr) 180px; align-items: center; gap: 12px; padding: 12px 8px; border-bottom: 1px solid var(--line); text-decoration: none; }
+a.match-row:hover { background: #FAFBFC; }
+.mr-home { display: flex; align-items: center; justify-content: flex-end; gap: 10px; font-weight: 500; text-align: right; }
+.mr-away { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.mr-score { text-align: center; font: 700 1.35rem/1 var(--font); font-stretch: 72%; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mr-score.vs { font: 500 .88rem var(--font); color: var(--muted); }
+.mr-meta { display: grid; justify-items: end; gap: 4px; font-size: .82rem; color: var(--muted); text-align: right; }
+.match-row.compact { grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); gap: 8px; padding: 10px 2px; }
+.match-row.compact .mr-meta { display: none; }
+.match-row.compact .mr-score { font-size: 1.15rem; }
+.events { list-style: none; margin: 0; padding: 0; }
+.events li { display: grid; grid-template-columns: 46px 16px 1fr; align-items: center; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.events li:last-child { border-bottom: 0; }
+.events .min { font: 700 1.05rem/1 var(--font); font-stretch: 75%; text-align: right; color: var(--muted); }
+.ev { display: inline-block; width: 12px; height: 12px; justify-self: center; }
+.ev-gol { border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--ink); }
+.ev-amarilla { width: 9px; height: 13px; background: var(--amber); border-radius: 2px; }
+.ev-roja { width: 9px; height: 13px; background: var(--red); border-radius: 2px; }
+.ev-sustitucion { border-radius: 50%; border: 1.5px dashed var(--muted); }
+.round-head { margin-top: 26px; display: flex; align-items: baseline; gap: 12px; }
+.round-head h3 { font-size: 1.3rem; }
+.round-head p { color: var(--muted); font-size: .92rem; }
+.rounds { display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 12px; }
+.round { flex: 0 0 230px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.round h3 { font-size: 1.15rem; }
+.round time { display: block; font-size: .82rem; color: var(--muted); margin: 2px 0 6px; }
+.round .m { padding: 8px 0; border-top: 1px solid var(--line); font-size: .9rem; }
+.round .m div { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.round .m small { display: block; color: var(--muted); margin-top: 3px; }
+.split { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.team-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.team-list button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 0; background: none; font: 500 .96rem var(--font); text-align: left; cursor: pointer; border-radius: 10px; color: var(--ink); }
+.team-list button:hover { background: var(--bg); }
+.team-list button[aria-current="true"] { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+.team-list small { margin-left: auto; color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.acta-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font: 700 1.6rem/1.1 var(--font); font-stretch: 72%; }
+
+/* =========================================================
+   Inicio: índice de secciones
+   ========================================================= */
+.hello .wrap { position: relative; padding-top: 50px; padding-bottom: 44px; display: flex; justify-content: space-between; align-items: end; gap: 28px; flex-wrap: wrap; }
+.hello h1 { font-size: clamp(2.8rem, 6vw, 4.6rem); color: #fff; }
+.hello p { margin-top: 12px; font-size: 1.06rem; color: var(--on-navy-muted); max-width: 60ch; }
+.progress { min-width: 260px; }
+.progress-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.progress-bar span { height: 6px; border-radius: 3px; background: rgba(238, 241, 247, .16); }
+.progress-bar span.on { background: var(--gold); }
+.progress p { margin-top: 10px; font-size: .92rem; color: var(--on-navy-muted); }
+.progress p b { color: #fff; font-weight: 600; }
+.squad-title { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.squad-title h2 { font-size: 1.9rem; }
+.squad-title p { color: var(--muted); }
+.kits { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.kit { position: relative; display: flex; flex-direction: column; gap: 4px; text-decoration: none; background: var(--surface); border: 1px solid var(--line);
+       border-radius: 16px; padding: 20px 20px 18px; min-height: 196px; transition: border-color .18s, transform .18s; }
+.kit:hover { border-color: var(--ink-2); transform: translateY(-2px); }
+.kit-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 14px; }
+.kit-icon { flex: none; width: 46px; height: 46px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); padding: 11px; transition: background .18s, color .18s, border-color .18s; }
+.kit:hover .kit-icon { background: var(--navy); border-color: var(--navy); color: #fff; }
+.kit-name { font: 700 1.3rem/1.1 var(--font); font-stretch: 75%; }
+.kit-desc { font-size: .9rem; color: var(--muted); }
+.kit-stat { margin-top: auto; padding-top: 14px; font-size: .86rem; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.kit.public { grid-column: span 2; background: var(--navy); border-color: var(--navy); color: var(--on-navy); }
+.kit.public .kit-name { color: #fff; }
+.kit.public .kit-desc { color: var(--on-navy-muted); }
+.kit.public .kit-stat { color: var(--gold); }
+.kit.public .kit-icon { background: rgba(238, 241, 247, .08); border-color: rgba(238, 241, 247, .18); color: #fff; }
+.badge { display: inline-flex; align-items: center; gap: 5px; font: 600 .74rem/1 var(--font); padding: 5px 9px; border-radius: 999px; white-space: nowrap; }
+.badge.next { background: var(--gold-soft); color: #7A5A12; }
+.badge.done { background: var(--green-soft); color: var(--green-ink); }
+.badge svg { width: 12px; height: 12px; }
+.kits .kit { animation: rise .5s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(var(--i) * 45ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+/* =========================================================
+   Acceso
+   ========================================================= */
+.auth { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); background: var(--surface); }
+.poster { position: relative; overflow: hidden; background: var(--navy); color: var(--on-navy); padding: 36px 52px 40px; display: flex; flex-direction: column; gap: 28px; }
+.poster .pitch { -webkit-mask-image: linear-gradient(160deg, transparent 20%, #000 75%); mask-image: linear-gradient(160deg, transparent 20%, #000 75%); stroke: rgba(238, 241, 247, .16); }
+.poster > * { position: relative; }
+.poster > .pitch { position: absolute; }
+.poster .logo { color: #fff; }
+.poster h1 { font-size: clamp(3rem, 6.2vw, 5.4rem); color: #fff; max-width: 11ch; margin-top: auto; line-height: 1; }
+.poster > p { font-size: 1.08rem; color: var(--on-navy-muted); max-width: 40ch; }
+.feats { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; max-width: 44ch; }
+.feats li { display: grid; grid-template-columns: 36px 1fr; gap: 14px; align-items: center; color: var(--on-navy); }
+.feat { width: 36px; height: 36px; border-radius: 10px; background: rgba(238, 241, 247, .08); border: 1px solid rgba(238, 241, 247, .16); padding: 8px; color: var(--gold); }
+.poster .demo-link { color: var(--on-navy); font-weight: 500; text-decoration-color: rgba(238, 241, 247, .4); text-underline-offset: 3px; }
+.auth-main { display: grid; place-items: center; padding: 48px 32px; }
+.auth-card { width: min(420px, 100%); }
+.pill-tabs { display: flex; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+.pill-tabs a { flex: 1; text-align: center; padding: 8px; border-radius: 9px; font-weight: 600; font-size: .92rem; text-decoration: none; color: var(--muted); }
+.pill-tabs a[aria-current="page"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(14, 22, 48, .08), 0 0 0 1px var(--line); }
+.auth-card .card { margin-top: 28px; padding: 0; border: 0; background: none; }
+.auth-card h2 { font-size: 2.2rem; }
+.auth-card .hint { color: var(--muted); margin-top: 6px; }
+.auth-card form { display: grid; gap: 14px; margin-top: 24px; }
+.auth-card .group { padding-top: 16px; margin-top: 4px; border-top: 1px solid var(--line); display: grid; gap: 14px; }
+.auth-card .group > p { font: 700 1.15rem/1 var(--font); font-stretch: 75%; }
+.auth-card .alt { margin-top: 22px; color: var(--muted); text-align: center; font-size: .94rem; }
+.auth-card .alt a { color: var(--green); font-weight: 600; }
+
+/* =========================================================
+   Sitio público
+   ========================================================= */
+.pub-head .wrap { position: relative; }
+.pub-head .row { display: flex; align-items: center; gap: 22px; min-height: 64px; flex-wrap: wrap; border-bottom: 1px solid rgba(238, 241, 247, .12); }
+.pub-head .logo { color: #fff; }
+.pub-tabs { display: flex; gap: 2px; margin-right: auto; align-self: stretch; }
+.pub-tabs a { display: inline-flex; align-items: center; text-decoration: none; font-weight: 500; font-size: .92rem; color: var(--on-navy-muted); padding: 0 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.pub-tabs a:hover { color: #fff; }
+.pub-tabs a[aria-current="page"] { color: #fff; border-bottom-color: var(--gold); }
+.pub-title { display: flex; justify-content: space-between; align-items: end; gap: 20px; flex-wrap: wrap; padding: 36px 0 42px; }
+.pub-title h1 { font-size: clamp(2.6rem, 6vw, 4.6rem); color: #fff; }
+.pub-title p { margin-top: 10px; font-size: 1.04rem; color: var(--on-navy-muted); }
+.pub-head .btn-yellow { background: transparent; border-color: rgba(238, 241, 247, .35); color: #fff; }
+.pub-head .btn-yellow:hover { border-color: #fff; background: rgba(238, 241, 247, .06); }
+.pick { display: grid; gap: 6px; font-weight: 600; font-size: .84rem; color: var(--on-navy-muted); }
+.pick select { min-width: 130px; background: rgba(238, 241, 247, .06); border-color: rgba(238, 241, 247, .25); color: #fff; }
+.pick select option { color: var(--ink); }
+.foot { border-top: 1px solid var(--line); background: var(--surface); }
+.foot .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 20px; padding-bottom: 20px; font-size: .88rem; color: var(--muted); }
+.foot a { color: var(--ink-2); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) { .kits { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kit.public { grid-column: span 3; } }
+@media (max-width: 980px) {
+  .cols, .split { grid-template-columns: minmax(0, 1fr); }
+  .auth { grid-template-columns: minmax(0, 1fr); }
+  .poster { padding: 26px 24px 32px; }
+  .poster h1 { margin-top: 26px; }
+  .match-row { grid-template-columns: minmax(0, 1fr) 62px minmax(0, 1fr); }
+  .mr-meta { grid-column: 1 / -1; display: flex; justify-content: center; gap: 10px; }
+}
+@media (max-width: 720px) {
+  .wrap { padding: 0 18px; }
+  .topbar .wrap { flex-wrap: wrap; gap: 0 12px; padding-top: 10px; }
+  .squad { order: 3; flex-basis: 100%; min-height: 44px; margin: 0 -18px; padding: 0 12px; }
+  .menu { margin-left: auto; }
+  .band .wrap { padding-top: 30px; padding-bottom: 28px; }
+  .band-icon { display: none; }
+  .card { padding: 20px 18px; border-radius: 14px; }
+  .stats { grid-template-columns: minmax(0, 1fr); }
+  .stat + .stat { border-left: 0; border-top: 1px solid var(--line); }
+  .kits { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kit.public { grid-column: span 2; }
+  .kit { min-height: 0; padding: 16px; }
+  .kit-desc { display: none; }
+  .hide-sm { display: none; }
+  .feats, .poster > p { display: none; }
+  .pub-tabs { order: 3; flex-basis: 100%; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="announcer" class="sr" aria-live="polite"></div>
+<script>
+/* ================= 2. DATOS ================= */
+/* =========================================================
+   SportsLeague: datos y reglas de negocio compartidas.
+
+   Cada colección corresponde a una tabla del documento de arquitectura:
+     League DB ....... leagues, seasons, categories, rules
+     Team DB ......... teams, players
+     Fixture DB ...... matches
+     Referee DB ...... referees (+ availability), assignments (referee_assignments)
+     Live Score DB ... events (match_events)
+     Analytics DB .... attendance (attendance_estimates), suspended (suspended_matches)
+   accounts ......... cuentas de organizador. En el proyecto real el API Gateway valida
+                      la contraseña (guardada solo como hash) y entrega JWT + refresh token.
+   notifications .... avisos enviados por Notification Service.
+
+   Las páginas comparten los datos guardándolos en localStorage (prototipo).
+   ========================================================= */
+
+const TODAY = '2026-09-26'; // fecha de referencia de los datos de ejemplo (sábado)
+const DAY_KEYS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const DAY_LABELS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const SPORT = { futbol: 'Fútbol', basquet: 'Básquet', voley: 'Vóley' };
+const TIEBREAK = { diferencia_de_goles: 'diferencia de goles', goles_a_favor: 'goles a favor' };
+const ELIG = { elegible: 'Elegible', no_elegible: 'No elegible', pendiente: 'Pendiente' };
+const STATUS = { programado: 'Programado', en_curso: 'En curso', finalizado: 'Finalizado', suspendido: 'Suspendido' };
+const EVENT = { gol: 'Gol', amarilla: 'Tarjeta amarilla', roja: 'Tarjeta roja', sustitucion: 'Sustitución' };
+const STORE_KEY = 'sportsleague-demo-v1';
+const SESSION_KEY = 'sportsleague-sesion';
+
+/* ---------- Utilidades ---------- */
+const fmtLong = new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const fmtShort = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function dateOnly(iso) { return String(iso).slice(0, 10); }
+function asDate(iso) { return new Date(dateOnly(iso) + 'T00:00:00Z'); }
+function longDate(iso) { return fmtLong.format(asDate(iso)); }
+function shortDate(iso) { return fmtShort.format(asDate(iso)); }
+function dayKey(iso) { return DAY_KEYS[asDate(iso).getUTCDay()]; }
+function signed(n) { return n > 0 ? '+' + n : String(n); }
+function ageAt(birth, at = TODAY) {
+  const b = asDate(birth), d = asDate(at);
+  let a = d.getUTCFullYear() - b.getUTCFullYear();
+  const m = d.getUTCMonth() - b.getUTCMonth();
+  if (m < 0 || (m === 0 && d.getUTCDate() < b.getUTCDate())) a--;
+  return a;
+}
+function parseRange(r) { const [min, max] = String(r).split('-').map(Number); return { min, max }; }
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+/* ---------- Estado ---------- */
+let DB = null, counters = {}, LIVE = null;
+function emptyDB() {
+  return { accounts: [], leagues: [], seasons: [], categories: [], rules: [], teams: [], players: [], matches: [],
+           referees: [], assignments: [], events: [], attendance: [], suspended: [], notifications: [] };
+}
+function nextId(k) { counters[k] = (counters[k] || 0) + 1; return counters[k]; }
+function byId(list, id) { return list.find((x) => x.id === id); }
+function league(id) { return byId(DB.leagues, id); }
+function season(id) { return byId(DB.seasons, id); }
+function category(id) { return byId(DB.categories, id); }
+function team(id) { return byId(DB.teams, id); }
+function player(id) { return byId(DB.players, id); }
+function match(id) { return byId(DB.matches, id); }
+function ruleOf(catId) { return DB.rules.find((r) => r.categoryId === catId); }
+function teamsOf(catId) { return DB.teams.filter((t) => t.categoryId === catId); }
+function leagueOfMatch(m) { const s = season(m.seasonId); return s ? s.leagueId : null; }
+
+/* =========================================================
+   Reglas de negocio (las mismas de los microservicios)
+   ========================================================= */
+// Team Service: elegibilidad según el age_range de la categoría (consulta síncrona a League)
+function eligibilityFor(categoryId, birthDate) {
+  const c = category(categoryId);
+  if (!c) return 'pendiente';
+  const { min, max } = parseRange(c.ageRange), a = ageAt(birthDate);
+  return a >= min && a <= max ? 'elegible' : 'no_elegible';
+}
+// Fixture Service: todos contra todos, localía equilibrada, canchas sin repetir en la jornada
+function roundRobin(ids, venues, startISO, daysBetween) {
+  const BYE = null, rot = ids.length % 2 === 0 ? [...ids] : [...ids, BYE], n = rot.length;
+  const home = Object.fromEntries(ids.map((t) => [t, 0])), out = [];
+  let cur = [...rot];
+  for (let r = 0; r < n - 1; r++) {
+    const d = asDate(startISO); d.setUTCDate(d.getUTCDate() + r * daysBetween);
+    let v = r;
+    for (let i = 0; i < n / 2; i++) {
+      const a = cur[i], b = cur[n - 1 - i];
+      if (a === BYE || b === BYE) continue;
+      const bHome = home[b] < home[a] || (home[b] === home[a] && r % 2 === 1);
+      const h = bHome ? b : a, w = bHome ? a : b;
+      home[h]++;
+      out.push({ round: r + 1, home: h, away: w, venue: venues[v++ % venues.length], date: d.toISOString() });
+    }
+    cur = [cur[0], cur[n - 1], ...cur.slice(1, n - 1)];
+  }
+  return out;
+}
+// Fixture Service: validaciones antes de generar (reglamento en League, equipos en Team)
+function buildFixture(p) {
+  const venues = p.venues.split(',').map((s) => s.trim()).filter(Boolean);
+  const c = category(p.categoryId);
+  if (!c) return { error: 'Elige una categoría.' };
+  if (!ruleOf(p.categoryId)) return { error: `La categoría ${c.name} no tiene reglamento. Defínelo en Ligas y reglamento antes de generar el calendario.` };
+  if (p.teamIds.length < 2) return { error: 'Elige al menos 2 equipos.' };
+  if (!p.zone) return { error: 'Escribe la zona de las canchas. Con ella se asignan los árbitros.' };
+  if (!venues.length) return { error: 'Escribe al menos una cancha.' };
+  if (!p.startDate) return { error: 'Elige la fecha de la primera jornada.' };
+  if (!(p.restDaysMin >= 1) || !(p.daysBetweenRounds >= 1)) return { error: 'El descanso mínimo y los días entre jornadas deben ser 1 o más.' };
+  if (p.daysBetweenRounds < p.restDaysMin) return { error: `Las jornadas quedarían cada ${p.daysBetweenRounds} días y el descanso mínimo es de ${p.restDaysMin}. Aumenta los días entre jornadas.` };
+  const per = Math.floor(p.teamIds.length / 2);
+  if (per > venues.length) return { error: `Cada jornada tiene ${per} partidos y solo hay ${venues.length} ${venues.length === 1 ? 'cancha' : 'canchas'}. Agrega canchas para que ningún partido se cruce.` };
+  const list = roundRobin(p.teamIds, venues, p.startDate, p.daysBetweenRounds);
+  return { list, rounds: Math.max(...list.map((x) => x.round)) };
+}
+// Referee Service: al recibir fixture.published asigna por zona, categoría y día; uno por partido y jornada
+function assignReferees(roundMatches, zone) {
+  if (!roundMatches.length) return 0;
+  const catId = team(roundMatches[0].homeTeam).categoryId, busy = new Set();
+  const load = (id) => DB.assignments.filter((a) => a.refereeId === id).length;
+  let created = 0;
+  for (const m of roundMatches) {
+    if (DB.assignments.some((a) => a.matchId === m.id)) continue;
+    const day = dayKey(m.scheduledAt);
+    const c = DB.referees.filter((r) => r.zone === zone && r.categoriesCertified.includes(catId) && r.availability.includes(day) && !busy.has(r.id))
+      .sort((x, y) => load(x.id) - load(y.id) || x.id - y.id)[0];
+    if (!c) continue;
+    DB.assignments.push({ id: nextId('assignment'), matchId: m.id, refereeId: c.id, confirmed: false });
+    busy.add(c.id); created++;
+  }
+  return created;
+}
+// Notification Service: horarios confirmados, cambios de sede y resultados finales
+function notify(leagueId, date, kind, text) { DB.notifications.push({ id: nextId('note'), leagueId, date, kind, text }); }
+// Live Score Service: evento registrado por el árbitro (match.event)
+function addEvent(m, type, p, minute) { DB.events.push({ id: nextId('event'), matchId: m.id, type, playerId: p.id, minute, teamId: p.teamId }); }
+function playerByJersey(teamId, jersey) {
+  return DB.players.find((p) => p.teamId === teamId && p.jerseyNumber === jersey && p.eligibilityStatus === 'elegible')
+    || DB.players.find((p) => p.teamId === teamId && p.jerseyNumber !== 1 && p.eligibilityStatus === 'elegible');
+}
+function resultText(m) { const [h, a] = scoreOf(m); return `Resultado final: ${team(m.homeTeam).name} ${h}–${a} ${team(m.awayTeam).name}`; }
+
+/* =========================================================
+   Consultas
+   ========================================================= */
+function leagueSeasons(lid) { return DB.seasons.filter((s) => s.leagueId === lid).sort((a, b) => a.year - b.year || a.id - b.id); }
+function leagueCategories(lid) { return DB.categories.filter((c) => c.leagueId === lid); }
+function leagueTeams(lid) { const ids = new Set(leagueCategories(lid).map((c) => c.id)); return DB.teams.filter((t) => ids.has(t.categoryId)); }
+function leagueReferees(lid) { const ids = new Set(leagueCategories(lid).map((c) => c.id)); return DB.referees.filter((r) => r.categoriesCertified.some((c) => ids.has(c))); }
+function leagueMatches(lid) { const ids = new Set(leagueSeasons(lid).map((s) => s.id)); return DB.matches.filter((m) => ids.has(m.seasonId)); }
+function leagueNotes(lid) { return DB.notifications.filter((n) => n.leagueId === lid).sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id); }
+function defaultSeason(lid) {
+  const ss = leagueSeasons(lid); if (!ss.length) return null;
+  const withMatches = ss.filter((s) => DB.matches.some((m) => m.seasonId === s.id));
+  const current = withMatches.find((s) => s.startDate <= TODAY && TODAY <= s.endDate);
+  return (current || withMatches[withMatches.length - 1] || ss[ss.length - 1]).id;
+}
+function seasonMatches(sid) { return DB.matches.filter((m) => m.seasonId === sid).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt) || a.id - b.id); }
+function roundsOf(sid) {
+  const groups = []; let last = null;
+  seasonMatches(sid).forEach((m) => { const d = dateOnly(m.scheduledAt); if (d !== last) { groups.push([]); last = d; } groups[groups.length - 1].push(m); });
+  return groups;
+}
+function roundNumber(m) { return roundsOf(m.seasonId).findIndex((g) => g.some((x) => x.id === m.id)) + 1; }
+function seasonCategory(sid) { const m = DB.matches.find((x) => x.seasonId === sid); return m ? team(m.homeTeam).categoryId : null; }
+function seasonTeams(sid) { const s = new Set(); seasonMatches(sid).forEach((m) => { s.add(m.homeTeam); s.add(m.awayTeam); }); return [...s]; }
+function scoreOf(m) { let h = 0, a = 0; DB.events.forEach((e) => { if (e.matchId === m.id && e.type === 'gol') { if (e.teamId === m.homeTeam) h++; else a++; } }); return [h, a]; }
+function currentRoundIndex(rounds) { const i = rounds.findIndex((g) => dateOnly(g[0].scheduledAt) >= TODAY); return i === -1 ? rounds.length - 1 : i; }
+function assignmentOf(matchId) { return DB.assignments.find((a) => a.matchId === matchId); }
+
+// Statistics Service: se recalcula con match.completed (solo partidos finalizados) y con el reglamento de League
+function standings(sid) {
+  const catId = seasonCategory(sid); if (!catId) return [];
+  const rule = ruleOf(catId) || { pointsWin: 3, pointsDraw: 1, tiebreakerCriteria: 'diferencia_de_goles' };
+  const rows = new Map(seasonTeams(sid).map((id) => [id, { teamId: id, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 }]));
+  seasonMatches(sid).filter((m) => m.status === 'finalizado').forEach((m) => {
+    const [h, a] = scoreOf(m), H = rows.get(m.homeTeam), A = rows.get(m.awayTeam);
+    H.gf += h; H.ga += a; A.gf += a; A.ga += h;
+    if (h > a) { H.wins++; A.losses++; } else if (h < a) { A.wins++; H.losses++; } else { H.draws++; A.draws++; }
+  });
+  const list = [...rows.values()].map((r) => ({ ...r, played: r.wins + r.draws + r.losses, goalDifference: r.gf - r.ga, points: r.wins * rule.pointsWin + r.draws * rule.pointsDraw }));
+  const tb = rule.tiebreakerCriteria === 'goles_a_favor' ? (x, y) => y.gf - x.gf : (x, y) => y.goalDifference - x.goalDifference;
+  return list.sort((x, y) => y.points - x.points || tb(x, y) || team(x.teamId).name.localeCompare(team(y.teamId).name));
+}
+function finishedIds(sid) { return new Set(seasonMatches(sid).filter((m) => m.status === 'finalizado').map((m) => m.id)); }
+function topScorers(sid) {
+  const fin = finishedIds(sid), c = new Map();
+  DB.events.forEach((e) => { if (e.type === 'gol' && fin.has(e.matchId)) c.set(e.playerId, (c.get(e.playerId) || 0) + 1); });
+  return [...c].map(([playerId, goals]) => ({ playerId, goals })).sort((a, b) => b.goals - a.goals || a.playerId - b.playerId);
+}
+function disciplinary(sid) {
+  const fin = finishedIds(sid), c = new Map();
+  DB.events.forEach((e) => {
+    if (!fin.has(e.matchId) || (e.type !== 'amarilla' && e.type !== 'roja')) return;
+    const r = c.get(e.playerId) || { playerId: e.playerId, yellowCards: 0, redCards: 0 };
+    if (e.type === 'amarilla') r.yellowCards++; else r.redCards++;
+    c.set(e.playerId, r);
+  });
+  return [...c.values()].sort((a, b) => b.redCards - a.redCards || b.yellowCards - a.yellowCards || a.playerId - b.playerId);
+}
+// Analytics Service: evolución del rendimiento (puntos acumulados por jornada)
+function performanceTrend(sid) {
+  const rounds = roundsOf(sid), rule = ruleOf(seasonCategory(sid)) || { pointsWin: 3, pointsDraw: 1 };
+  const lastPlayed = rounds.reduce((acc, g, i) => (g.some((m) => m.status === 'finalizado') ? i : acc), -1);
+  return seasonTeams(sid).map((tid) => {
+    let pts = 0; const series = [0];
+    rounds.slice(0, lastPlayed + 1).forEach((g) => {
+      g.forEach((m) => {
+        if (m.status !== 'finalizado' || (m.homeTeam !== tid && m.awayTeam !== tid)) return;
+        const [h, a] = scoreOf(m), mine = m.homeTeam === tid ? h : a, other = m.homeTeam === tid ? a : h;
+        pts += mine > other ? rule.pointsWin : mine === other ? rule.pointsDraw : 0;
+      });
+      series.push(pts);
+    });
+    return { teamId: tid, series, points: pts };
+  }).sort((a, b) => b.points - a.points);
+}
+function seasonKpis(sid) {
+  const ms = seasonMatches(sid), played = ms.filter((m) => m.status === 'finalizado'), susp = ms.filter((m) => m.status === 'suspendido');
+  const att = DB.attendance.filter((a) => played.some((m) => m.id === a.matchId));
+  return { total: ms.length, played: played.length, suspended: susp,
+           avgAttendance: att.length ? Math.round(att.reduce((s, a) => s + a.estimatedAttendance, 0) / att.length) : 0 };
+}
+
+/* =========================================================
+   Partido en curso: el árbitro registra eventos desde su app (match.event);
+   al minuto 90 se publica match.completed -> Statistics recalcula y Notification avisa
+   ========================================================= */
+function liveTick() {
+  const m = LIVE && match(LIVE.matchId);
+  if (!m || m.status !== 'en_curso') return null;
+  LIVE.minute++;
+  const out = { matchId: m.id, minute: LIVE.minute, changed: false, announce: null };
+  LIVE.script.filter((s) => s.minute === LIVE.minute).forEach((s) => {
+    const tid = s.side === 'home' ? m.homeTeam : m.awayTeam;
+    addEvent(m, s.type, playerByJersey(tid, s.jersey), s.minute);
+    if (s.type === 'gol') out.announce = `Gol de ${team(tid).name}, minuto ${s.minute}.`;
+    out.changed = true;
+  });
+  if (LIVE.minute >= 90) {
+    m.status = 'finalizado';
+    DB.attendance.push({ matchId: m.id, estimatedAttendance: 140 });
+    notify(leagueOfMatch(m), TODAY, 'resultado', resultText(m));
+    out.announce = `${resultText(m)}. La tabla de posiciones se actualizó.`;
+    out.changed = true;
+  }
+  save();
+  return out;
+}
+
+/* =========================================================
+   Persistencia y sesión (prototipo)
+   ========================================================= */
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify({ DB, counters, LIVE })); } catch (e) { /* sin almacenamiento */ } }
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { const s = JSON.parse(raw); DB = s.DB; counters = s.counters; LIVE = s.LIVE; return; }
+  } catch (e) { /* datos dañados: se vuelven a crear */ }
+  seed(); save();
+}
+function clearDemoData() { try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) { /* nada que borrar */ } }
+function currentAccount() { try { return byId(DB.accounts, Number(localStorage.getItem(SESSION_KEY))) || null; } catch (e) { return null; } }
+function signIn(accountId) { try { localStorage.setItem(SESSION_KEY, String(accountId)); } catch (e) { /* sin almacenamiento */ } }
+function signOut() { try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* sin almacenamiento */ } }
+
+/* =========================================================
+   Datos de ejemplo (ficticios): Liga Municipal de Montería
+   ========================================================= */
+function seed() {
+  DB = emptyDB(); counters = {};
+  const R = rng(26092026), pick = (a) => a[Math.floor(R() * a.length)];
+
+  DB.leagues.push({ id: nextId('league'), name: 'Liga Municipal de Montería', sport: 'futbol' });
+  DB.accounts.push({ id: nextId('account'), name: 'Organizador de ejemplo', email: 'organizador@ligamonteria.co', leagueId: 1 });
+  DB.seasons.push({ id: nextId('season'), leagueId: 1, year: 2026, startDate: '2026-08-01', endDate: '2026-11-28' });
+  DB.seasons.push({ id: nextId('season'), leagueId: 1, year: 2027, startDate: '2027-02-06', endDate: '2027-06-26' });
+  DB.categories.push({ id: nextId('category'), leagueId: 1, name: 'Sub-17', ageRange: '15-17' });
+  DB.categories.push({ id: nextId('category'), leagueId: 1, name: 'Sub-15', ageRange: '13-15' });
+  DB.rules.push({ id: nextId('rule'), categoryId: 1, pointsWin: 3, pointsDraw: 1, tiebreakerCriteria: 'diferencia_de_goles' });
+  DB.rules.push({ id: nextId('rule'), categoryId: 2, pointsWin: 3, pointsDraw: 1, tiebreakerCriteria: 'diferencia_de_goles' });
+  [['Halcones FC', 1], ['Tigres del Sinú', 1], ['Leones del Sur', 1], ['Águilas Doradas', 1], ['Real Montería', 1], ['Atlético Cereté', 1],
+   ['Juventud Lorica', 1], ['Deportivo Sahagún', 1], ['Unión Ciénaga de Oro', 2], ['Racing Tierralta', 2], ['Independiente Planeta Rica', 2], ['Club Montelíbano', 2]]
+    .forEach(([name, categoryId]) => DB.teams.push({ id: nextId('team'), name, categoryId }));
+
+  DB.teams.forEach((t, ti) => {
+    const { min, max } = parseRange(category(t.categoryId).ageRange);
+    [1, 3, 4, 5, 7, 8, 9, 10, 11, 16].forEach((jersey, i) => {
+      let age = min + Math.floor(R() * (max - min + 1));
+      if (i === 9 && ti % 3 === 0) age = max + 2;
+      const d = asDate(TODAY); d.setUTCFullYear(d.getUTCFullYear() - age); d.setUTCDate(d.getUTCDate() - 1 - Math.floor(R() * 340));
+      const birthDate = d.toISOString().slice(0, 10);
+      let status = eligibilityFor(t.categoryId, birthDate);
+      if (ti === 2 && i === 8) status = 'pendiente'; // League no respondió al fichar: queda por verificar
+      DB.players.push({ id: nextId('player'), teamId: t.id, birthDate, eligibilityStatus: status, jerseyNumber: jersey });
+    });
+  });
+
+  [['monteria-norte', [1, 2], ['sabado', 'domingo']], ['monteria-norte', [1], ['sabado']], ['monteria-norte', [1, 2], ['sabado', 'domingo']],
+   ['monteria-norte', [1], ['sabado', 'domingo']], ['monteria-sur', [1, 2], ['sabado']], ['monteria-norte', [2], ['domingo']]]
+    .forEach(([zone, categoriesCertified, availability]) => DB.referees.push({ id: nextId('referee'), zone, categoriesCertified, availability }));
+
+  // Temporada 2026, Sub-17: calendario generado con el algoritmo del Fixture Service
+  const VENUES = ['Cancha Municipal 1', 'Cancha Municipal 2', 'Estadio 18 de Junio', 'Cancha La Granja'];
+  const s1Teams = teamsOf(1).map((t) => t.id);
+  roundRobin(s1Teams, VENUES, '2026-08-15', 7).forEach((g) => DB.matches.push({ id: nextId('match'), seasonId: 1, homeTeam: g.home, awayTeam: g.away, venue: g.venue, scheduledAt: g.date, status: 'programado' }));
+  const S1 = roundsOf(1);
+  S1.forEach((g, r) => { notify(1, '2026-08-10', 'calendario', `Jornada ${r + 1} publicada: ${g.length} partidos el ${longDate(g[0].scheduledAt)}`); assignReferees(g, 'monteria-norte'); });
+
+  const strength = Object.fromEntries(s1Teams.map((id, i) => [id, [1.45, 1.3, 1.55, 1.05, 0.95, 0.9, 0.8, 0.7][i]]));
+  const goals = (s) => { let g = 0; while (g < 5 && R() < s / (g + 1.6)) g++; return g; };
+  const seedResult = (m) => {
+    const used = new Set();
+    const minute = (lo = 2, hi = 90) => { let x; do { x = lo + Math.floor(R() * (hi - lo + 1)); } while (used.has(x)); used.add(x); return x; };
+    const someone = (tid) => pick(DB.players.filter((p) => p.teamId === tid && p.jerseyNumber !== 1 && p.eligibilityStatus === 'elegible'));
+    const side = () => (R() < 0.5 ? m.homeTeam : m.awayTeam);
+    for (let i = goals(strength[m.homeTeam]); i > 0; i--) addEvent(m, 'gol', someone(m.homeTeam), minute());
+    for (let i = goals(strength[m.awayTeam]); i > 0; i--) addEvent(m, 'gol', someone(m.awayTeam), minute());
+    for (let i = Math.floor(R() * 3); i > 0; i--) addEvent(m, 'amarilla', someone(side()), minute());
+    if (R() < 0.12) addEvent(m, 'roja', someone(side()), minute(30, 90));
+    for (let i = 1 + Math.floor(R() * 2); i > 0; i--) { const t = side(); addEvent(m, 'sustitucion', playerByJersey(t, 16), minute(46, 85)); }
+  };
+  let liveMatch = null;
+  S1.forEach((g, r) => g.forEach((m, i) => {
+    if (r < 6) m.status = 'finalizado';
+    if (r === 4 && i === 2) m.status = 'suspendido';
+    if (r === 6) m.status = ['finalizado', 'en_curso', 'programado', 'programado'][i];
+    if (m.status === 'finalizado') {
+      seedResult(m);
+      DB.attendance.push({ matchId: m.id, estimatedAttendance: 60 + Math.floor(R() * 180) });
+      notify(1, dateOnly(m.scheduledAt), 'resultado', resultText(m));
+    }
+    if (m.status === 'suspendido') DB.suspended.push({ matchId: m.id, reason: 'Lluvia: la cancha se inundó' });
+    if (m.status === 'en_curso') liveMatch = m;
+  }));
+  DB.assignments.forEach((a) => { const m = match(a.matchId); a.confirmed = m.status !== 'programado' || m.id === S1[6][2].id; });
+  const moved = S1[6][3]; moved.venue = 'Polideportivo Sur';
+  notify(1, '2026-09-24', 'sede', `Cambio de sede: ${team(moved.homeTeam).name} contra ${team(moved.awayTeam).name} ahora se juega en Polideportivo Sur`);
+
+  [['gol', 'home', 9, 23], ['gol', 'away', 10, 41], ['amarilla', 'away', 5, 52], ['sustitucion', 'home', 16, 56]]
+    .forEach(([type, s, j, min]) => addEvent(liveMatch, type, playerByJersey(s === 'home' ? liveMatch.homeTeam : liveMatch.awayTeam, j), min));
+  LIVE = { matchId: liveMatch.id, minute: 58,
+    script: [{ minute: 63, type: 'amarilla', side: 'away', jersey: 4 }, { minute: 71, type: 'gol', side: 'home', jersey: 9 },
+             { minute: 80, type: 'sustitucion', side: 'away', jersey: 16 }, { minute: 87, type: 'gol', side: 'home', jersey: 10 }] };
+}
+
+loadData();
+
+</script>
+<script>
+/* ================= 3. APLICACIÓN ================= */
+/* =========================================================
+   SportsLeague en una sola página.
+   Rutas: #/registro · #/entrar · #/inicio · #/ligas · #/equipos · #/arbitros · #/calendario
+          #/partidos(/id) · #/estadisticas · #/publico(/calendario|/tabla|/partido/id)
+   Los datos y las reglas de negocio están en el bloque "datos" (una colección por tabla del documento).
+   ========================================================= */
+const ui = { flash: null };
+let ACCOUNT = null, LEAGUE = null, CURRENT = '';
+
+const LOGO = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x=".5" y=".5" width="31" height="31" rx="9" fill="#0E1630" stroke="rgba(238,241,247,.28)"/><path d="M16 6v20" stroke="#EEF1F7" stroke-width="1.6"/><circle cx="16" cy="16" r="5.6" fill="none" stroke="#EEF1F7" stroke-width="1.6"/><circle cx="16" cy="16" r="1.9" fill="#B58A2E"/></svg>`;
+// Cancha en trazo fino para las bandas
+const PITCH = `<svg class="pitch" viewBox="0 0 600 380" preserveAspectRatio="xMaxYMid slice" aria-hidden="true"><rect x="10" y="10" width="580" height="360" rx="3"/><path d="M300 10V370"/><circle cx="300" cy="190" r="58"/><rect x="10" y="98" width="92" height="184"/><rect x="498" y="98" width="92" height="184"/><rect x="10" y="148" width="34" height="84"/><rect x="556" y="148" width="34" height="84"/><path d="M102 150a48 48 0 0 1 0 80M498 150a48 48 0 0 0 0 80"/></svg>`;
+const CHECK = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.5l4.5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const KITS = {
+  blue:    { fill: '#2B44FF', ink: '#FFFFFF', band: '#2B44FF', chip: '#2B44FF' },
+  yellow:  { fill: '#FFD23F', ink: '#1B1F4B', band: '#FFD23F', chip: '#FFD23F' },
+  pink:    { fill: '#FF5C8A', ink: '#1B1F4B', band: '#FF5C8A', chip: '#FF5C8A' },
+  green:   { fill: '#0FA968', ink: '#1B1F4B', band: '#0FA968', chip: '#0FA968' },
+  navy:    { fill: '#1B1F4B', ink: '#FFFFFF', band: '#1B1F4B', chip: '#1B1F4B' },
+  white:   { fill: '#FFFFFF', ink: '#1B1F4B', band: '#FFFFFF', chip: '#FFFFFF' },
+  stripes: { fill: null,      ink: '#1B1F4B', band: '#2B44FF', chip: '#FFFFFF' },
+};
+// Las secciones siguen el orden en que se arma una liga
+const SECTIONS = [
+  { id: 'ligas', n: 1, kit: 'blue', label: 'Ligas y reglamento', short: 'Ligas', desc: 'Temporadas, categorías y cómo se cuentan los puntos.' },
+  { id: 'equipos', n: 2, kit: 'yellow', label: 'Equipos y jugadores', short: 'Equipos', desc: 'Plantillas y elegibilidad por edad.' },
+  { id: 'arbitros', n: 3, kit: 'pink', label: 'Árbitros', short: 'Árbitros', desc: 'Zona, categorías y días disponibles.' },
+  { id: 'calendario', n: 4, kit: 'green', label: 'Calendario', short: 'Calendario', desc: 'Genera la temporada y cambia sedes.' },
+  { id: 'partidos', n: 5, kit: 'navy', label: 'Partidos y actas', short: 'Partidos', desc: 'Partidos en curso y corrección de actas.' },
+  { id: 'estadisticas', n: 6, kit: 'white', label: 'Estadísticas', short: 'Estadísticas', desc: 'Tabla, goleadores, tarjetas y rendimiento.' },
+  { id: 'publico', n: 7, kit: 'stripes', label: 'Sitio público', short: 'Sitio público', desc: 'Lo que ven los equipos y los seguidores.' },
+];
+const sec = (id) => SECTIONS.find((s) => s.id === id);
+
+/* Íconos de línea: uno por sección, acorde a su nombre */
+const ICONS = {
+  ligas: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.6a.6.6 0 0 0-.6.6V7a3 3 0 0 0 3 3M16 6h2.4a.6.6 0 0 1 .6.6V7a3 3 0 0 1-3 3"/><path d="M12 13v3"/><path d="M8.6 20h6.8l-.5-2.9a1.4 1.4 0 0 0-1.4-1.1h-3a1.4 1.4 0 0 0-1.4 1.1z"/>',
+  equipos: '<path d="M9 3.6 5.6 4.9 3 9.2l2.9 1.5L7.4 9.6V20h9.2V9.6l1.5 1.1L21 9.2l-2.6-4.3L15 3.6a3 3 0 0 1-6 0z"/><path d="M10.5 13.5h3"/>',
+  arbitros: '<circle cx="9.5" cy="14.5" r="5"/><circle cx="9.5" cy="14.5" r="1.4"/><path d="M12.7 10.6 14.6 9h5.9v3.6h-5.2"/><path d="M5.4 11.6 3.6 9.8"/><rect x="16.2" y="2.8" width="3.4" height="4.6" rx=".6"/>',
+  calendario: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M8 13h.01M12 13h.01M8 16.5h.01M12 16.5h.01" stroke-width="2.4"/><rect x="14.6" y="12.2" width="3.2" height="3.2" rx=".7"/>',
+  partidos: '<rect x="5" y="4.5" width="14" height="16" rx="2.5"/><path d="M9 4.5v-.7A.8.8 0 0 1 9.8 3h4.4a.8.8 0 0 1 .8.8v.7"/><path d="M8.5 9h7M8.5 12.5h7M8.5 16h4"/>',
+  estadisticas: '<path d="M4 20h16"/><rect x="5.5" y="12" width="3" height="5.5" rx=".6"/><rect x="10.5" y="8.5" width="3" height="9" rx=".6"/><rect x="15.5" y="5" width="3" height="12.5" rx=".6"/>',
+  publico: '<path d="M4 10.2v3.6a1 1 0 0 0 1 1h2.2L15 19V5L7.2 9.2H5a1 1 0 0 0-1 1z"/><path d="M8 14.8 9 19h2.2l-.8-3.6"/><path d="M18 9.2a4 4 0 0 1 0 5.6M20.2 7a7 7 0 0 1 0 10"/>',
+  inicio: '<path d="M4 10.4 12 4l8 6.4V20h-5.2v-5.6H9.2V20H4z"/>',
+};
+function iconSvg(id) {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${ICONS[id]}</svg>`;
+}
+
+/* ---------- Piezas ---------- */
+const PALETTE = ['#1F3FBF', '#D06A2C', '#B42E35', '#B98C2A', '#5B3CC4', '#0E7A55', '#2E86C1', '#7A1F3D', '#C9A93A', '#55607A', '#9C3D12', '#1D5E3A', '#11667A', '#A3306A'];
+const PREFIX = ['real', 'atletico', 'juventud', 'deportivo', 'union', 'racing', 'independiente', 'club'];
+function initials(name) {
+  const w = name.normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter((x) => x && !['fc', 'de', 'del', 'la', 'el'].includes(x.toLowerCase()));
+  if (!w.length) return '?';
+  if (w.length > 1 && PREFIX.includes(w[0].toLowerCase())) return (w[0][0] + w[1].slice(0, 2)).toUpperCase();
+  return w[0].slice(0, 3).toUpperCase();
+}
+function inkFor(hex) { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 165 ? '#0E1630' : '#FFFFFF'; }
+function crest(teamId, size = 32) {
+  const t = team(teamId), c = PALETTE[(t.id - 1) % PALETTE.length];
+  return `<span class="crest" style="--s:${size}px;--c1:${c};--c2:${inkFor(c)}" aria-hidden="true">${esc(initials(t.name))}</span>`;
+}
+function chip(m) { return `<span class="chip chip-${m.status}">${m.status === 'en_curso' ? '<i></i>' : ''}${STATUS[m.status]}</span>`; }
+function liveMin(m) { return `<span data-live-minute="${m.id}">${LIVE && LIVE.matchId === m.id ? LIVE.minute : ''}'</span>`; }
+function shows(m) { return m.status === 'finalizado' || m.status === 'en_curso'; }
+function eventText(e) {
+  const p = player(e.playerId), t = team(e.teamId).name;
+  return { gol: `Gol de ${t}, #${p.jerseyNumber}`, amarilla: `Amarilla para el #${p.jerseyNumber} de ${t}`,
+           roja: `Roja para el #${p.jerseyNumber} de ${t}`, sustitucion: `Cambio en ${t}: entra el #${p.jerseyNumber}` }[e.type];
+}
+function tile(m, href) {
+  const [h, a] = scoreOf(m);
+  return `<a class="tile" href="${href}"><div class="tile-top">${chip(m)}${m.status === 'en_curso' ? `<span class="tile-min">${liveMin(m)}</span>` : ''}</div>
+    <div class="tile-row">${crest(m.homeTeam, 30)}<span>${esc(team(m.homeTeam).name)}</span><b>${shows(m) ? h : ''}</b></div>
+    <div class="tile-row">${crest(m.awayTeam, 30)}<span>${esc(team(m.awayTeam).name)}</span><b>${shows(m) ? a : ''}</b></div>
+    <div class="tile-venue">${esc(m.venue)}</div></a>`;
+}
+function matchRow(m, href, compact) {
+  const [h, a] = scoreOf(m);
+  return `<a class="match-row${compact ? ' compact' : ''}" href="${href}">
+    <span class="mr-home"><span>${esc(team(m.homeTeam).name)}</span>${crest(m.homeTeam, 28)}</span>
+    <span class="mr-score${shows(m) ? '' : ' vs'}">${shows(m) ? `${h}–${a}` : 'vs'}</span>
+    <span class="mr-away">${crest(m.awayTeam, 28)}<span>${esc(team(m.awayTeam).name)}</span></span>
+    <span class="mr-meta">${chip(m)}<span>${esc(m.venue)}</span></span></a>`;
+}
+function board(m) {
+  const [h, a] = scoreOf(m);
+  return `<div class="board"><div class="board-top"><span>Jornada ${roundNumber(m)}, ${longDate(m.scheduledAt)}, ${esc(m.venue)}</span>${chip(m)}</div>
+    <div class="board-score"><div class="board-side">${crest(m.homeTeam, 64)}${esc(team(m.homeTeam).name)}</div>
+      <div><div class="board-digits">${shows(m) ? `${h}–${a}` : 'vs'}</div>${m.status === 'en_curso' ? `<span class="board-clock">${liveMin(m)}</span>` : ''}</div>
+      <div class="board-side">${crest(m.awayTeam, 64)}${esc(team(m.awayTeam).name)}</div></div></div>`;
+}
+function eventsList(m) {
+  const evs = DB.events.filter((e) => e.matchId === m.id).sort((x, y) => x.minute - y.minute || x.id - y.id);
+  if (m.status === 'programado') return `<p class="empty">El partido todavía no empieza.</p>`;
+  if (m.status === 'suspendido') { const s = DB.suspended.find((x) => x.matchId === m.id); return `<p class="empty">Partido suspendido${s ? `: ${esc(s.reason)}` : ''}.</p>`; }
+  if (!evs.length) return `<p class="empty">Sin eventos registrados.</p>`;
+  return `<ol class="events">${evs.map((e) => `<li><span class="min">${e.minute}'</span><span class="ev ev-${e.type}" aria-hidden="true"></span><span>${esc(eventText(e))}</span></li>`).join('')}</ol>`;
+}
+function ruleNote(catId) {
+  const r = ruleOf(catId); if (!r) return '';
+  return `Victoria ${r.pointsWin} puntos, empate ${r.pointsDraw}. Desempate por ${TIEBREAK[r.tiebreakerCriteria]}. La tabla se actualiza al terminar cada partido.`;
+}
+function standingsTable(sid, compact) {
+  const rows = standings(sid);
+  if (!rows.length) return `<p class="empty">Todavía no hay partidos en esta temporada.</p>`;
+  const extra = (r) => (compact ? '' : `<td class="num hide-sm">${r.wins}</td><td class="num hide-sm">${r.draws}</td><td class="num hide-sm">${r.losses}</td>`);
+  return `<div class="scroll"><table class="data"><thead><tr><th>#</th><th>Equipo</th><th class="num">PJ</th>
+    ${compact ? '' : '<th class="num hide-sm">G</th><th class="num hide-sm">E</th><th class="num hide-sm">P</th>'}<th class="num">DG</th><th class="num">Pts</th></tr></thead><tbody>
+    ${rows.map((r, i) => `<tr><td class="pos">${i + 1}</td><td><span class="team-cell">${crest(r.teamId, 28)}${esc(team(r.teamId).name)}</span></td>
+      <td class="num">${r.played}</td>${extra(r)}<td class="num">${signed(r.goalDifference)}</td><td class="num pts">${r.points}</td></tr>`).join('')}
+    </tbody></table></div><p class="rule-note">${esc(ruleNote(seasonCategory(sid)))}</p>`;
+}
+function scorersList(sid, n) {
+  const list = topScorers(sid).slice(0, n);
+  if (!list.length) return `<p class="empty">Aún no hay goles en partidos finalizados.</p>`;
+  return `<ol class="rank">${list.map((s, i) => { const p = player(s.playerId);
+    return `<li><span class="n">${i + 1}</span>${crest(p.teamId, 28)}<span class="who"><b>Camiseta #${p.jerseyNumber}</b><span>${esc(team(p.teamId).name)}</span></span><span class="val">${s.goals}</span></li>`; }).join('')}</ol>`;
+}
+function cardsTable(sid, n) {
+  const list = disciplinary(sid).slice(0, n);
+  if (!list.length) return `<p class="empty">Aún no hay tarjetas en partidos finalizados.</p>`;
+  return `<div class="scroll"><table class="data"><thead><tr><th>Jugador</th><th class="num">Amarillas</th><th class="num">Rojas</th></tr></thead><tbody>
+    ${list.map((d) => { const p = player(d.playerId); return `<tr><td><span class="team-cell">${crest(p.teamId, 26)}#${p.jerseyNumber}, ${esc(team(p.teamId).name)}</span></td><td class="num">${d.yellowCards}</td><td class="num">${d.redCards}</td></tr>`; }).join('')}
+    </tbody></table></div>`;
+}
+function spark(series, max) {
+  const n = Math.max(series.length - 1, 1);
+  const pts = series.map((v, i) => `${((i / n) * 100).toFixed(1)},${(28 - (v / Math.max(max, 1)) * 26).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="#0E7A55" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function kpis(sid) {
+  const k = seasonKpis(sid);
+  return `<div class="stats"><div class="stat"><b>${k.played} de ${k.total}</b><span>partidos jugados</span></div>
+    <div class="stat"><b>${k.avgAttendance}</b><span>personas por partido en promedio (asistencia estimada)</span></div>
+    <div class="stat"><b>${k.suspended.length}</b><span>${k.suspended.length === 1 ? 'partido suspendido' : 'partidos suspendidos'}</span></div></div>`;
+}
+function notesList(lid, n) {
+  const KIND = { calendario: 'Horario confirmado', sede: 'Cambio de sede', resultado: 'Resultado final' };
+  const list = leagueNotes(lid).slice(0, n);
+  if (!list.length) return `<p class="empty">Todavía no se ha enviado ningún aviso.</p>`;
+  return `<ul class="notes">${list.map((x) => `<li><span class="meta"><span class="kind">${KIND[x.kind]}</span><time datetime="${x.date}">${shortDate(x.date)}</time></span><span>${esc(x.text)}</span></li>`).join('')}</ul>`;
+}
+function seasonPick(key, sid) {
+  return `<label class="fl">Temporada<select data-change="${key}">${leagueSeasons(LEAGUE.id).map((s) => `<option value="${s.id}"${s.id === sid ? ' selected' : ''}>${s.year}</option>`).join('')}</select></label>`;
+}
+function formMsg(name) {
+  const f = ui.flash && ui.flash.form === name ? ui.flash : null;
+  return `<p class="form-msg${f ? ' is-ok' : ''}" data-msg${f ? ' role="status" tabindex="-1"' : ''}>${f ? esc(f.text) : ''}</p>`;
+}
+function topFlash() { return ui.flash && ui.flash.form === 'top' ? `<div class="flash" role="status" tabindex="-1">${esc(ui.flash.text)}</div>` : ''; }
+function emptyCard(title, text, href, label) { return `<div class="card"><h2>${title}</h2><p class="hint">${text}</p>${href ? `<div class="factions"><a class="btn btn-blue" href="${href}">${label}</a></div>` : ''}</div>`; }
+function ok(text, form) { ui.flash = { text, form: form || 'top' }; save(); render(); const el = document.querySelector('.form-msg.is-ok, .flash'); if (el) el.focus(); }
+function fail(f, text) { const p = f.querySelector('[data-msg]'); p.className = 'form-msg is-error'; p.setAttribute('role', 'alert'); p.textContent = text; }
+
+/* ---------- Marco del panel ---------- */
+function shell(active, content) {
+  const nav = `<a href="#/inicio"${active === 'inicio' ? ' aria-current="page"' : ''}><span class="ico">${iconSvg('inicio')}</span>Inicio</a>`
+    + SECTIONS.map((s) => `<a href="#/${s.id}"${active === s.id ? ' aria-current="page"' : ''}><span class="ico">${iconSvg(s.id)}</span>${s.short}</a>`).join('');
+  const ini = initials(ACCOUNT.name).slice(0, 2);
+  return `<header class="topbar"><div class="wrap"><a class="logo" href="#/inicio">${LOGO}SportsLeague</a>
+      <nav class="squad" aria-label="Secciones">${nav}</nav>
+      <details class="menu"><summary aria-label="Cuenta de ${esc(ACCOUNT.name)}">${esc(ini)}</summary><div class="menu-panel">
+        <p><b>${esc(ACCOUNT.name)}</b>${esc(LEAGUE.name)}</p>
+        <a href="#/publico">Ver sitio público</a><button type="button" data-action="logout">Cerrar sesión</button><button type="button" data-action="resetDemo">Restablecer datos de ejemplo</button>
+      </div></details></div></header>${content}
+    <footer class="foot"><div class="wrap"><span>${esc(LEAGUE.name)} en SportsLeague</span><a href="#/publico">Sitio público de la liga</a></div></footer>`;
+}
+function band(id, title, intro) {
+  return `<section class="band">${PITCH}<div class="wrap"><span class="band-icon" aria-hidden="true">${iconSvg(id)}</span><div><h1>${title}</h1><p>${intro}</p></div></div></section>`;
+}
+const page = (inner) => `<main class="page"><div class="wrap stack">${topFlash()}${inner}</div></main>`;
+
+/* =========================================================
+   Acceso: crear cuenta e iniciar sesión
+   (API Gateway: JWT + refresh token; la contraseña se guarda solo como hash. Al crear la cuenta: POST /leagues)
+   ========================================================= */
+function viewAuth(mode) {
+  const tabs = `<nav class="pill-tabs" aria-label="Acceso"><a href="#/registro"${mode === 'registro' ? ' aria-current="page"' : ''}>Crear cuenta</a><a href="#/entrar"${mode === 'entrar' ? ' aria-current="page"' : ''}>Iniciar sesión</a></nav>`;
+  const crear = `<div class="card"><h2>Crea tu cuenta</h2><p class="hint">Para quienes organizan ligas amateur.</p>
+    <form data-form="signup" novalidate>
+      <label class="fl">Tu nombre<input name="name" autocomplete="name" /></label>
+      <label class="fl">Correo<input type="email" name="email" autocomplete="email" /></label>
+      <label class="fl">Contraseña <small>mínimo 8 caracteres</small><input type="password" name="password" autocomplete="new-password" /></label>
+      <label class="fl">Repite la contraseña<input type="password" name="password2" autocomplete="new-password" /></label>
+      <div class="group"><p>Tu liga</p>
+        <label class="fl">Nombre de la liga<input name="leagueName" placeholder="Liga Municipal de Montería" /></label>
+        <label class="fl">Deporte<select name="sport">${Object.entries(SPORT).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label></div>
+      <button class="btn btn-blue btn-block" type="submit">Crear cuenta</button>${formMsg('signup')}
+    </form></div><p class="alt">¿Ya tienes cuenta? <a href="#/entrar">Inicia sesión</a></p>`;
+  const entrar = `<div class="card"><h2>Inicia sesión</h2><p class="hint">Entra al panel de tu liga.</p>
+    <form data-form="signin" novalidate>
+      <label class="fl">Correo<input type="email" name="email" autocomplete="username" /></label>
+      <label class="fl">Contraseña<input type="password" name="password" autocomplete="current-password" /></label>
+      <button class="btn btn-blue btn-block" type="submit">Entrar</button>${formMsg('signin')}
+    </form><div class="factions"><button class="btn btn-yellow btn-block" type="button" data-action="demo">Entrar con la cuenta de ejemplo</button></div></div>
+    <p class="alt">¿No tienes cuenta? <a href="#/registro">Créala aquí</a></p>`;
+  return `<div class="auth"><section class="poster">${PITCH}<a class="logo" href="#/registro">${LOGO}SportsLeague</a>
+      <h1>Tu liga, organizada de principio a fin.</h1>
+      <p>Para ligas amateur de fútbol, básquet y vóley.</p>
+      <ul class="feats">
+        <li><span class="feat">${iconSvg('calendario')}</span>El calendario de la temporada se genera solo, respetando canchas y descanso.</li>
+        <li><span class="feat">${iconSvg('arbitros')}</span>Cada partido recibe su árbitro según zona, categoría y disponibilidad.</li>
+        <li><span class="feat">${iconSvg('estadisticas')}</span>Resultados, tabla de posiciones y goleadores al día para todos.</li>
+      </ul>
+      <a class="demo-link" href="#/publico">Ver el sitio de una liga de ejemplo</a></section>
+    <main class="auth-main"><div class="auth-card">${tabs}${mode === 'entrar' ? entrar : crear}</div></main></div>`;
+}
+
+/* =========================================================
+   Inicio: la plantilla de camisetas
+   ========================================================= */
+function setupState() {
+  const lid = LEAGUE.id, cats = leagueCategories(lid);
+  return {
+    ligas: leagueSeasons(lid).length > 0 && cats.some((c) => ruleOf(c.id)),
+    equipos: cats.some((c) => teamsOf(c.id).length >= 2),
+    arbitros: leagueReferees(lid).length > 0,
+    calendario: leagueMatches(lid).length > 0,
+  };
+}
+function kitStat(id) {
+  const lid = LEAGUE.id, ms = leagueMatches(lid);
+  switch (id) {
+    case 'ligas': { const s = leagueSeasons(lid).length, c = leagueCategories(lid).length; return `${s} ${s === 1 ? 'temporada' : 'temporadas'}, ${c} ${c === 1 ? 'categoría' : 'categorías'}`; }
+    case 'equipos': { const t = leagueTeams(lid), ids = new Set(t.map((x) => x.id)); return `${t.length} equipos, ${DB.players.filter((p) => ids.has(p.teamId)).length} jugadores`; }
+    case 'arbitros': { const n = leagueReferees(lid).length; return `${n} ${n === 1 ? 'árbitro' : 'árbitros'}`; }
+    case 'calendario': return ms.length ? `${ms.length} partidos` : 'Sin calendario';
+    case 'partidos': { const live = ms.filter((m) => m.status === 'en_curso').length, fin = ms.filter((m) => m.status === 'finalizado').length; return live ? `${live} en curso, ${fin} finalizados` : `${fin} finalizados`; }
+    case 'estadisticas': return ms.some((m) => m.status === 'finalizado') ? 'Al día con el último partido' : 'Aún sin partidos jugados';
+    default: return 'Abrir el sitio de la liga';
+  }
+}
+function viewInicio() {
+  const st = setupState(), steps = ['ligas', 'equipos', 'arbitros', 'calendario'], done = steps.filter((s) => st[s]).length;
+  const next = steps.find((s) => !st[s]);
+  const first = ACCOUNT.name.trim().split(/\s+/)[0];
+  const kits = SECTIONS.map((s, i) => {
+    const badge = steps.includes(s.id) && done < steps.length ? (st[s.id] ? `<span class="badge done">${CHECK}Listo</span>` : s.id === next ? '<span class="badge next">Siguiente paso</span>' : '') : '';
+    return `<a class="kit${s.id === 'publico' ? ' public' : ''}" href="#/${s.id}" style="--i:${i}"><span class="kit-top"><span class="kit-icon">${iconSvg(s.id)}</span>${badge}</span>
+      <span class="kit-name">${s.label}</span><span class="kit-desc">${s.desc}</span><span class="kit-stat">${kitStat(s.id)}</span></a>`;
+  }).join('');
+  let html = `<section class="hello">${PITCH}<div class="wrap"><div><h1>Hola, ${esc(first)}</h1><p>${esc(LEAGUE.name)}, ${SPORT[LEAGUE.sport].toLowerCase()}.${done < steps.length ? ' En cuatro pasos tu liga queda lista para jugar.' : ''}</p></div>
+      ${done < steps.length ? `<div class="progress" role="img" aria-label="${done} de ${steps.length} pasos listos"><div class="progress-bar">${steps.map((x) => `<span class="${st[x] ? 'on' : ''}"></span>`).join('')}</div><p><b>${done} de ${steps.length}</b> pasos para poner en marcha tu liga</p></div>` : ''}</div></section>
+    <main class="page"><div class="wrap stack">${topFlash()}
+      <section><div class="squad-title"><h2>Secciones</h2><p>Todo lo de tu liga, en un solo lugar.</p></div><div class="kits">${kits}</div></section>`;
+  if (leagueMatches(LEAGUE.id).length) {
+    const sid = ui.season;
+    if (!seasonMatches(sid).length) {
+      html += `<div class="toolbar">${seasonPick('season', sid)}</div>` + emptyCard(`La temporada ${season(sid).year} todavía no tiene calendario`, 'Genéralo para ver aquí la jornada, la tabla y los indicadores.', '#/calendario', 'Ir a Calendario');
+    } else {
+      const rounds = roundsOf(sid), ci = currentRoundIndex(rounds), cur = rounds[ci], d = cur[0].scheduledAt;
+      html += `<section class="card"><div class="head"><div><h2>Jornada ${ci + 1} de ${rounds.length}</h2><p>${cap((dateOnly(d) === TODAY ? 'hoy, ' : '') + longDate(d))}</p></div>${seasonPick('season', sid)}</div>
+          <div class="tiles">${cur.map((m) => tile(m, `#/partidos/${m.id}`)).join('')}</div></section>
+        ${kpis(sid)}
+        <div class="cols"><section class="card"><div class="head"><h2>Tabla de posiciones</h2><a href="#/estadisticas">Ver estadísticas</a></div>${standingsTable(sid, true)}</section>
+          <section class="card"><h2>Avisos recientes</h2>${notesList(LEAGUE.id, 6)}</section></div>`;
+    }
+  }
+  return html + `</div></main>`;
+}
+
+/* =========================================================
+   1. Ligas y reglamento (League Service)
+   ========================================================= */
+function viewLigas() {
+  const seasons = leagueSeasons(LEAGUE.id), cats = leagueCategories(LEAGUE.id), editing = ui.editRule ? category(ui.editRule) : null;
+  const nextYear = seasons.length ? Math.max(...seasons.map((s) => s.year)) + 1 : 2026;
+  const ruleForm = (c) => { const r = ruleOf(c.id); return `<form class="f" data-form="rule" data-cat="${c.id}" novalidate><h3>Reglamento de ${esc(c.name)}</h3><div class="fgrid">
+      <label class="fl">Puntos por victoria<input type="number" name="pointsWin" min="0" value="${r ? r.pointsWin : 3}" /></label>
+      <label class="fl">Puntos por empate<input type="number" name="pointsDraw" min="0" value="${r ? r.pointsDraw : 1}" /></label>
+      <label class="fl">Criterio de desempate<select name="tiebreakerCriteria">${Object.entries(TIEBREAK).map(([k, v]) => `<option value="${k}"${r && r.tiebreakerCriteria === k ? ' selected' : ''}>${cap(v)}</option>`).join('')}</select></label></div>
+      <div class="factions"><button class="btn btn-blue" type="submit">Guardar reglamento</button><button class="btn" type="button" data-action="cancelRule">Cancelar</button></div>${formMsg('rule')}</form>`; };
+  return band('ligas', 'Ligas y reglamento', `${esc(LEAGUE.name)}. Define las temporadas, las categorías y cómo se cuentan los puntos.`) + page(`
+    <section class="card"><h2>Temporadas</h2>
+      ${seasons.length ? `<div class="scroll"><table class="data"><thead><tr><th>Año</th><th>Inicio</th><th>Fin</th><th>Calendario</th></tr></thead><tbody>
+        ${seasons.map((s) => { const n = roundsOf(s.id).length; return `<tr><td class="pos">${s.year}</td><td>${shortDate(s.startDate)}</td><td>${shortDate(s.endDate)}</td><td>${n ? `${n} jornadas, categoría ${esc(category(seasonCategory(s.id)).name)}` : 'Sin calendario'}</td></tr>`; }).join('')}
+      </tbody></table></div>` : '<p class="empty">Todavía no hay temporadas. Crea la primera aquí abajo.</p>'}
+      <form class="f" data-form="season" novalidate><h3>Nueva temporada</h3><div class="fgrid">
+        <label class="fl">Año<input type="number" name="year" min="2000" value="${nextYear}" /></label>
+        <label class="fl">Inicio<input type="date" name="startDate" /></label>
+        <label class="fl">Fin<input type="date" name="endDate" /></label>
+        <button class="btn btn-blue" type="submit">Crear temporada</button></div>${formMsg('season')}</form></section>
+    <section class="card"><h2>Categorías</h2><p class="hint">El rango de edad se usa para validar a cada jugador al ficharlo. Sin reglamento no se puede generar el calendario.</p>
+      ${cats.length ? `<div class="scroll"><table class="data"><thead><tr><th>Categoría</th><th>Rango de edad</th><th>Reglamento</th><th></th></tr></thead><tbody>
+        ${cats.map((c) => { const r = ruleOf(c.id); return `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.ageRange)} años</td>
+          <td>${r ? `Victoria ${r.pointsWin}, empate ${r.pointsDraw}, desempate por ${TIEBREAK[r.tiebreakerCriteria]}` : '<span class="elig elig-pendiente">Sin reglamento</span>'}</td>
+          <td><button class="linkish" data-action="editRule" data-id="${c.id}">${r ? 'Editar reglamento' : 'Definir reglamento'}</button></td></tr>`; }).join('')}
+      </tbody></table></div>` : '<p class="empty">Todavía no hay categorías.</p>'}
+      ${editing ? ruleForm(editing) : formMsg('rule')}
+      ${seasons.length ? `<form class="f" data-form="category" novalidate><h3>Nueva categoría</h3><div class="fgrid">
+        <label class="fl">Temporada<select name="seasonId">${seasons.map((s) => `<option value="${s.id}">${s.year}</option>`).join('')}</select></label>
+        <label class="fl">Nombre<input name="name" placeholder="Sub-17" /></label>
+        <label class="fl">Rango de edad <small>mínimo-máximo</small><input name="ageRange" placeholder="15-17" /></label>
+        <button class="btn btn-blue" type="submit">Crear categoría</button></div>${formMsg('category')}</form>` : '<p class="empty">Para crear una categoría primero crea una temporada.</p>'}
+    </section>`);
+}
+
+/* =========================================================
+   2. Equipos y jugadores (Team Service)
+   ========================================================= */
+function viewEquipos() {
+  const head = band('equipos', 'Equipos y jugadores', 'Al fichar a un jugador se compara su edad con el rango de su categoría.');
+  const cats = leagueCategories(LEAGUE.id);
+  if (!cats.length) return head + page(emptyCard('Todavía no hay categorías', 'Cada equipo pertenece a una categoría. Créala primero en Ligas y reglamento.', '#/ligas', 'Ir a Ligas y reglamento'));
+  if (!cats.some((c) => c.id === ui.category)) ui.category = cats[0].id;
+  const cat = category(ui.category), teams = teamsOf(cat.id);
+  if (!teams.some((t) => t.id === ui.team)) ui.team = teams.length ? teams[0].id : null;
+  const t = ui.team ? team(ui.team) : null, { min, max } = parseRange(cat.ageRange);
+  const roster = t ? DB.players.filter((p) => p.teamId === t.id).sort((a, b) => a.jerseyNumber - b.jerseyNumber) : [];
+  return head + page(`<div class="toolbar"><label class="fl">Categoría<select data-change="category">${cats.map((c) => `<option value="${c.id}"${c.id === cat.id ? ' selected' : ''}>${esc(c.name)} (${esc(c.ageRange)} años)</option>`).join('')}</select></label></div>
+    <div class="split">
+      <section class="card"><h2>Equipos</h2>
+        ${teams.length ? `<ul class="team-list">${teams.map((x) => `<li><button type="button" data-action="pickTeam" data-id="${x.id}" aria-current="${x.id === ui.team}">${crest(x.id, 30)}${esc(x.name)}<small>${DB.players.filter((p) => p.teamId === x.id).length}</small></button></li>`).join('')}</ul>` : '<p class="empty">Esta categoría todavía no tiene equipos.</p>'}
+        <form class="f" data-form="team" novalidate><label class="fl">Nuevo equipo en ${esc(cat.name)}<input name="name" placeholder="Nombre del equipo" /></label>
+          <div class="factions"><button class="btn btn-blue" type="submit">Registrar equipo</button></div>${formMsg('team')}</form></section>
+      <section class="card">${t ? `<div class="head"><h2 style="display:flex;align-items:center;gap:12px">${crest(t.id, 40)}${esc(t.name)}</h2><p>${esc(cat.name)} admite de ${min} a ${max} años</p></div>
+        ${roster.length ? `<div class="scroll"><table class="data"><thead><tr><th>Camiseta</th><th>Nacimiento</th><th class="num">Edad</th><th>Elegibilidad</th><th></th></tr></thead><tbody>
+          ${roster.map((p) => `<tr><td class="pos">#${p.jerseyNumber}</td><td>${shortDate(p.birthDate)}</td><td class="num">${ageAt(p.birthDate)}</td><td><span class="elig elig-${p.eligibilityStatus}">${ELIG[p.eligibilityStatus]}</span></td>
+            <td><button class="linkish" data-action="verifyPlayer" data-id="${p.id}">Verificar</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">Todavía no tiene jugadores. Ficha el primero aquí abajo.</p>'}
+        <form class="f" data-form="player" novalidate><h3>Fichar jugador</h3><div class="fgrid">
+          <label class="fl">Fecha de nacimiento<input type="date" name="birthDate" /></label>
+          <label class="fl">Número de camiseta<input type="number" name="jerseyNumber" min="1" /></label>
+          <button class="btn btn-blue" type="submit">Fichar jugador</button></div>${formMsg('player')}</form>` : '<h2>Plantilla</h2><p class="empty">Registra un equipo para ver y fichar su plantilla.</p>'}</section>
+    </div>`);
+}
+
+/* =========================================================
+   3. Árbitros (Referee Service)
+   ========================================================= */
+const dayNames = (list) => DAY_KEYS.filter((d) => list.includes(d)).map((d) => DAY_LABELS[DAY_KEYS.indexOf(d)]).join(', ');
+const dayChecks = (sel) => DAY_KEYS.map((d, i) => `<label><input type="checkbox" name="days" value="${d}"${sel.includes(d) ? ' checked' : ''} />${DAY_LABELS[i]}</label>`).join('');
+function viewArbitros() {
+  const head = band('arbitros', 'Árbitros', 'Al publicar una jornada, cada partido recibe un árbitro de la misma zona, certificado en la categoría y disponible ese día.');
+  const cats = leagueCategories(LEAGUE.id);
+  if (!cats.length) return head + page(emptyCard('Todavía no hay categorías', 'Los árbitros se certifican por categoría. Créala primero en Ligas y reglamento.', '#/ligas', 'Ir a Ligas y reglamento'));
+  const catNames = (ids) => ids.filter((id) => category(id) && category(id).leagueId === LEAGUE.id).map((id) => category(id).name).join(', ');
+  const refs = leagueReferees(LEAGUE.id);
+  const upcoming = leagueMatches(LEAGUE.id).filter((m) => m.status === 'programado' || m.status === 'en_curso').sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt) || a.id - b.id);
+  return head + page(`<section class="card"><h2>Registrados</h2>
+      ${refs.length ? `<div class="scroll"><table class="data"><thead><tr><th>Árbitro</th><th>Zona</th><th>Categorías</th><th>Disponible</th><th class="num">Partidos</th><th></th></tr></thead><tbody>
+        ${refs.map((r) => `<tr><td class="pos">#${r.id}</td><td>${esc(r.zone)}</td><td>${esc(catNames(r.categoriesCertified))}</td>
+          <td>${ui.availEdit === r.id ? `<form class="inline-form checks" data-form="avail" data-ref="${r.id}" novalidate>${dayChecks(r.availability)}<button class="btn btn-blue btn-sm" type="submit">Guardar</button><button class="btn btn-sm" type="button" data-action="cancelAvail">Cancelar</button><p class="form-msg" data-msg></p></form>` : esc(dayNames(r.availability))}</td>
+          <td class="num">${DB.assignments.filter((a) => a.refereeId === r.id).length}</td>
+          <td>${ui.availEdit === r.id ? '' : `<button class="linkish" data-action="editAvail" data-id="${r.id}">Editar disponibilidad</button>`}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="empty">Todavía no hay árbitros registrados en las categorías de esta liga.</p>'}
+      <form class="f" data-form="referee" novalidate><h3>Registrar árbitro</h3><div class="fgrid">
+        <label class="fl">Zona<input name="zone" value="monteria-norte" /></label>
+        <fieldset class="checks"><legend>Categorías certificadas</legend>${cats.map((c) => `<label><input type="checkbox" name="categories" value="${c.id}" />${esc(c.name)}</label>`).join('')}</fieldset>
+        <fieldset class="checks"><legend>Días disponibles</legend>${dayChecks(['sabado', 'domingo'])}</fieldset>
+      </div><div class="factions"><button class="btn btn-blue" type="submit">Registrar árbitro</button></div>${formMsg('referee')}</form></section>
+    <section class="card"><h2>Asignaciones de los próximos partidos</h2><p class="hint">Cada árbitro confirma su asignación desde su app.</p>
+      ${upcoming.length ? `<div class="scroll"><table class="data"><thead><tr><th>Fecha</th><th>Partido</th><th class="hide-sm">Cancha</th><th>Árbitro</th><th>Confirmación</th></tr></thead><tbody>
+        ${upcoming.map((m) => { const a = assignmentOf(m.id); return `<tr><td>${shortDate(m.scheduledAt)}</td><td>${esc(team(m.homeTeam).name)} contra ${esc(team(m.awayTeam).name)}</td><td class="hide-sm">${esc(m.venue)}</td>
+          <td>${a ? `#${a.refereeId}` : 'Sin árbitro disponible'}</td><td>${a ? `<span class="elig ${a.confirmed ? 'elig-elegible' : 'elig-pendiente'}">${a.confirmed ? 'Confirmada' : 'Esperando confirmación'}</span>` : ''}</td></tr>`; }).join('')}
+      </tbody></table></div>` : '<p class="empty">No hay partidos programados.</p>'}</section>`);
+}
+
+/* =========================================================
+   4. Calendario (Fixture Service)
+   ========================================================= */
+const genCategories = () => leagueCategories(LEAGUE.id).filter((c) => teamsOf(c.id).length >= 2);
+function defaultGen(sid) {
+  const c = genCategories()[0];
+  return { categoryId: c.id, zone: 'monteria-norte', teamIds: teamsOf(c.id).map((t) => t.id), venues: 'Cancha Municipal 1, Cancha Municipal 2', startDate: season(sid).startDate, restDaysMin: 3, daysBetweenRounds: 7 };
+}
+function readGen(fd) {
+  return { categoryId: Number(fd.get('categoryId')), zone: String(fd.get('zone') || '').trim(), teamIds: fd.getAll('teamIds').map(Number), venues: String(fd.get('venues') || ''),
+           startDate: String(fd.get('startDate') || ''), restDaysMin: Number(fd.get('restDaysMin')), daysBetweenRounds: Number(fd.get('daysBetweenRounds')) };
+}
+function viewCalendario() {
+  const head = band('calendario', 'Calendario', 'Cada temporada tiene un calendario. Al publicarlo, cada jornada se envía a los árbitros y a los equipos.');
+  if (!ui.season) return head + page(emptyCard('Todavía no hay temporadas', 'Crea una temporada en Ligas y reglamento para generar su calendario.', '#/ligas', 'Ir a Ligas y reglamento'));
+  const sid = ui.season, rounds = roundsOf(sid), tools = `<div class="toolbar">${seasonPick('season', sid)}</div>`;
+  if (rounds.length) {
+    return head + page(tools + `<section class="card"><h2>Temporada ${season(sid).year}, ${esc(category(seasonCategory(sid)).name)}</h2>
+      <p class="hint">Solo se puede cambiar la sede de partidos programados. El cambio se avisa a los equipos.</p>
+      ${rounds.map((g, i) => `<div class="round-head"><h3>Jornada ${i + 1}</h3><p>${cap(longDate(g[0].scheduledAt))}</p></div>
+        <div class="scroll"><table class="data"><thead><tr><th>Partido</th><th>Cancha</th><th>Estado</th><th class="hide-sm">Árbitro</th><th></th></tr></thead><tbody>
+        ${g.map((m) => { const asg = assignmentOf(m.id); return `<tr>
+          <td><span class="team-cell">${crest(m.homeTeam, 24)}${esc(team(m.homeTeam).name)}</span><span class="team-cell" style="margin-top:5px">${crest(m.awayTeam, 24)}${esc(team(m.awayTeam).name)}</span></td>
+          <td>${ui.venueEdit === m.id ? `<form class="inline-form" data-form="venue" data-match="${m.id}" novalidate><input name="venue" value="${esc(m.venue)}" aria-label="Nueva cancha" />
+              <button class="btn btn-blue btn-sm" type="submit">Guardar</button><button class="btn btn-sm" type="button" data-action="cancelVenue">Cancelar</button><p class="form-msg" data-msg></p></form>` : esc(m.venue)}</td>
+          <td>${chip(m)}</td><td class="hide-sm">${asg ? `#${asg.refereeId}, ${asg.confirmed ? 'confirmado' : 'sin confirmar'}` : 'Sin árbitro'}</td>
+          <td>${m.status === 'programado' && ui.venueEdit !== m.id ? `<button class="linkish" data-action="editVenue" data-id="${m.id}">Cambiar sede</button>` : ''}</td></tr>`; }).join('')}
+        </tbody></table></div>`).join('')}</section>`);
+  }
+  if (!genCategories().length) return head + page(tools + emptyCard('Necesitas al menos dos equipos en una categoría', 'Registra los equipos para poder generar el calendario.', '#/equipos', 'Ir a Equipos'));
+  if (!ui.gen || ui.gen.seasonId !== sid) ui.gen = { seasonId: sid, params: defaultGen(sid), preview: null, error: null };
+  const p = ui.gen.params, cat = category(p.categoryId);
+  let html = `<section class="card"><h2>Generar el calendario de ${season(sid).year}</h2>
+    <p class="hint">Todos contra todos, sin repetir cancha en una jornada, con el descanso mínimo y la localía equilibrada.</p>
+    <form id="gen-form" data-form="genPreview" novalidate><div class="fgrid">
+      <label class="fl">Categoría<select name="categoryId" data-change="genCategory">${leagueCategories(LEAGUE.id).map((c) => `<option value="${c.id}"${c.id === p.categoryId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+      <label class="fl">Zona <small>para asignar árbitros</small><input name="zone" value="${esc(p.zone)}" /></label>
+      <label class="fl">Primera jornada<input type="date" name="startDate" value="${esc(p.startDate)}" /></label>
+      <label class="fl">Descanso mínimo <small>días</small><input type="number" name="restDaysMin" min="1" value="${p.restDaysMin}" /></label>
+      <label class="fl">Días entre jornadas<input type="number" name="daysBetweenRounds" min="1" value="${p.daysBetweenRounds}" /></label>
+      <label class="fl" style="grid-column:1/-1">Canchas disponibles <small>separadas por coma</small><input name="venues" value="${esc(p.venues)}" /></label>
+      <fieldset class="checks"><legend>Equipos de ${esc(cat.name)}</legend>${teamsOf(cat.id).map((t) => `<label><input type="checkbox" name="teamIds" value="${t.id}"${p.teamIds.includes(t.id) ? ' checked' : ''} />${esc(t.name)}</label>`).join('') || '<span class="empty">Esta categoría no tiene equipos.</span>'}</fieldset>
+    </div><div class="factions"><button class="btn btn-blue" type="submit">Ver calendario propuesto</button></div>
+    ${ui.gen.error ? `<p class="form-msg is-error" role="alert">${esc(ui.gen.error)}</p>` : ''}</form>`;
+  if (ui.gen.preview) {
+    const pv = ui.gen.preview, byRound = {};
+    pv.list.forEach((x) => (byRound[x.round] = byRound[x.round] || []).push(x));
+    html += `<div class="f"><p><b>${pv.list.length} partidos en ${pv.rounds} jornadas.</b> Revisa la propuesta y publícala.</p>
+      <div class="rounds" style="margin-top:14px" tabindex="0" aria-label="Calendario propuesto">${Object.entries(byRound).map(([r, ms]) => `<div class="round"><h3>Jornada ${r}</h3><time>${cap(longDate(ms[0].date))}</time>
+        ${ms.map((x) => `<div class="m"><div>${crest(x.home, 22)}${esc(team(x.home).name)}</div><div>${crest(x.away, 22)}${esc(team(x.away).name)}</div><small>${esc(x.venue)}</small></div>`).join('')}</div>`).join('')}</div>
+      <div class="factions"><button class="btn btn-yellow" type="button" data-action="genPublish">Publicar calendario</button></div></div>`;
+  }
+  return head + page(tools + html + `</section>`);
+}
+
+/* =========================================================
+   5. Partidos y actas (Live Score Service)
+   ========================================================= */
+function actaTable(m) {
+  const evs = DB.events.filter((e) => e.matchId === m.id).sort((x, y) => x.minute - y.minute || x.id - y.id);
+  const typeOpts = (sel) => Object.entries(EVENT).map(([k, v]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${v}</option>`).join('');
+  if (!evs.length) return '<p class="empty">El acta no tiene eventos.</p>';
+  return `<div class="scroll"><table class="data"><thead><tr><th class="num">Minuto</th><th>Evento</th><th>Equipo</th><th>Camiseta</th><th></th></tr></thead><tbody>
+    ${evs.map((e) => ui.editEvent === e.id ? `<tr><td colspan="5"><form class="inline-form" data-form="eventFix" data-event="${e.id}" novalidate>
+        <input type="number" name="minute" min="1" max="120" value="${e.minute}" aria-label="Minuto" style="width:90px" />
+        <select name="type" aria-label="Evento">${typeOpts(e.type)}</select>
+        <select name="side" aria-label="Equipo"><option value="home"${e.teamId === m.homeTeam ? ' selected' : ''}>${esc(team(m.homeTeam).name)}</option><option value="away"${e.teamId === m.awayTeam ? ' selected' : ''}>${esc(team(m.awayTeam).name)}</option></select>
+        <input type="number" name="jersey" min="1" value="${player(e.playerId).jerseyNumber}" aria-label="Camiseta" style="width:90px" />
+        <button class="btn btn-blue btn-sm" type="submit">Guardar corrección</button><button class="btn btn-sm" type="button" data-action="cancelEvent">Cancelar</button>
+        <p class="form-msg" data-msg></p></form></td></tr>`
+      : `<tr><td class="num pos">${e.minute}'</td><td><span style="display:inline-flex;align-items:center;gap:8px"><span class="ev ev-${e.type}" aria-hidden="true"></span>${EVENT[e.type]}</span></td>
+         <td>${esc(team(e.teamId).name)}</td><td>#${player(e.playerId).jerseyNumber}</td><td><button class="linkish" data-action="editEvent" data-id="${e.id}">Corregir</button></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function viewPartidos(r) {
+  const head = band('partidos', 'Partidos y actas', 'Sigue los partidos en curso y corrige el acta de los que ya terminaron. Los eventos los registra el árbitro desde su app.');
+  const m = r.a ? match(Number(r.a)) : null;
+  if (m && leagueOfMatch(m) === LEAGUE.id) {
+    let inner = `<p><a class="linkish" href="#/partidos">Todos los partidos</a></p>${board(m)}`;
+    if (m.status === 'en_curso') inner += `<section class="card"><h2>Eventos del partido</h2><p class="hint">El marcador cambia con cada evento. El acta se puede corregir cuando el partido termine.</p>${eventsList(m)}</section>`;
+    else if (m.status === 'finalizado') inner += `<section class="card"><h2>Acta del partido</h2><p class="hint">Si un evento quedó mal registrado, corrígelo. El marcador, la tabla, los goleadores y las tarjetas se recalculan.</p>${formMsg('eventFix')}${actaTable(m)}</section>`;
+    else inner += `<section class="card"><h2>Eventos del partido</h2>${eventsList(m)}</section>`;
+    return head + page(inner);
+  }
+  const sid = ui.season;
+  if (!sid || !seasonMatches(sid).length) return head + page((sid ? `<div class="toolbar">${seasonPick('season', sid)}</div>` : '') + emptyCard('Todavía no hay partidos', 'Genera el calendario para ver aquí los partidos.', '#/calendario', 'Ir a Calendario'));
+  const ms = seasonMatches(sid), live = ms.filter((x) => x.status === 'en_curso'), fin = ms.filter((x) => x.status === 'finalizado').reverse();
+  return head + page(`<div class="toolbar">${seasonPick('season', sid)}</div>
+    <section class="card"><h2>En curso</h2>${live.length ? `<div class="tiles">${live.map((x) => tile(x, `#/partidos/${x.id}`)).join('')}</div>` : '<p class="empty">No hay partidos jugándose ahora.</p>'}</section>
+    <section class="card"><h2>Finalizados</h2>${fin.length ? `<div class="scroll"><table class="data"><thead><tr><th>Jornada</th><th>Fecha</th><th>Partido</th><th class="num">Resultado</th><th></th></tr></thead><tbody>
+      ${fin.map((x) => { const [h, a] = scoreOf(x); return `<tr><td class="pos">${roundNumber(x)}</td><td>${shortDate(x.scheduledAt)}</td><td>${esc(team(x.homeTeam).name)} contra ${esc(team(x.awayTeam).name)}</td><td class="num pts">${h}–${a}</td>
+        <td><a class="linkish" href="#/partidos/${x.id}">Abrir acta</a></td></tr>`; }).join('')}</tbody></table></div>` : '<p class="empty">Todavía no hay partidos finalizados.</p>'}</section>`);
+}
+
+/* =========================================================
+   6. Estadísticas (Statistics + Analytics)
+   ========================================================= */
+function viewEstadisticas() {
+  const head = band('estadisticas', 'Estadísticas', 'Se recalculan cada vez que termina un partido o se corrige un acta.');
+  if (!ui.season) return head + page(emptyCard('Todavía no hay temporadas', 'Crea una temporada y genera su calendario para ver estadísticas.', '#/ligas', 'Ir a Ligas y reglamento'));
+  const sid = ui.season, tools = `<div class="toolbar">${seasonPick('season', sid)}</div>`;
+  if (!seasonMatches(sid).length) return head + page(tools + emptyCard(`La temporada ${season(sid).year} todavía no tiene calendario`, 'Genéralo para empezar a ver estadísticas.', '#/calendario', 'Ir a Calendario'));
+  const trend = performanceTrend(sid), max = Math.max(...trend.map((t) => t.points), 1), susp = seasonKpis(sid).suspended;
+  return head + page(`${tools}${kpis(sid)}
+    <section class="card"><h2>Tabla de posiciones</h2>${standingsTable(sid, false)}</section>
+    <div class="cols"><section class="card"><h2>Tarjetas acumuladas</h2>${cardsTable(sid, 10)}</section><section class="card"><h2>Goleadores</h2>${scorersList(sid, 10)}</section></div>
+    <section class="card"><h2>Evolución del rendimiento</h2><p class="hint">Puntos acumulados por jornada de cada equipo.</p>
+      <div class="trends">${trend.map((t) => `<div class="trend">${crest(t.teamId, 26)}<em>${esc(team(t.teamId).name)}</em>${spark(t.series, max)}<b>${t.points}</b></div>`).join('')}</div></section>
+    ${susp.length ? `<section class="card"><h2>Partidos suspendidos</h2><div class="scroll"><table class="data"><thead><tr><th>Fecha</th><th>Partido</th><th>Motivo</th></tr></thead><tbody>
+      ${susp.map((x) => `<tr><td>${shortDate(x.scheduledAt)}</td><td>${esc(team(x.homeTeam).name)} contra ${esc(team(x.awayTeam).name)}</td><td>${esc((DB.suspended.find((s) => s.matchId === x.id) || {}).reason || '')}</td></tr>`).join('')}</tbody></table></div></section>` : ''}`);
+}
+
+/* =========================================================
+   7. Sitio público de la liga (web pública con SSR en el documento)
+   ========================================================= */
+function viewPublico(r) {
+  const lg = ACCOUNT ? league(ACCOUNT.leagueId) : league(1);
+  if (ui.pubLeague !== lg.id) { ui.pubLeague = lg.id; ui.pubSeason = defaultSeason(lg.id); }
+  const sub = r.a || 'jornada', sid = ui.pubSeason, catId = sid ? seasonCategory(sid) : null;
+  const href = (m) => `#/publico/partido/${m.id}`;
+  const none = `<section class="card"><h2>${sid ? `La temporada ${season(sid).year} todavía no tiene calendario` : 'Esta liga todavía no tiene temporadas'}</h2><p class="hint">Cuando la liga lo publique, aquí aparecerán los partidos, los resultados y la tabla.</p></section>`;
+  let body;
+  if (sub === 'partido') {
+    const m = match(Number(r.b));
+    body = m && leagueOfMatch(m) === lg.id ? `<p><a class="linkish" href="#/publico/calendario">Calendario</a></p>${board(m)}<section class="card"><h2>Eventos del partido</h2>${eventsList(m)}</section>`
+      : `<section class="card"><h2>No encontramos ese partido</h2><p class="hint"><a href="#/publico/calendario">Ir al calendario</a></p></section>`;
+  } else if (!sid || !roundsOf(sid).length) body = none;
+  else if (sub === 'calendario') {
+    const rounds = roundsOf(sid);
+    body = `<section class="card"><div class="head"><h2>Calendario</h2><p>${rounds.length} jornadas, ${seasonMatches(sid).length} partidos</p></div>
+      ${rounds.map((g, i) => `<div class="round-head"><h3>Jornada ${i + 1}</h3><p>${cap(longDate(g[0].scheduledAt))}</p></div>${g.map((m) => matchRow(m, href(m))).join('')}`).join('')}</section>`;
+  } else if (sub === 'tabla') {
+    body = `<section class="card"><h2>Tabla de posiciones</h2>${standingsTable(sid, false)}</section>
+      <div class="cols"><section class="card"><h2>Tarjetas acumuladas</h2>${cardsTable(sid, 10)}</section><section class="card"><h2>Goleadores</h2>${scorersList(sid, 10)}</section></div>`;
+  } else {
+    const rounds = roundsOf(sid), ci = currentRoundIndex(rounds), cur = rounds[ci], d = cur[0].scheduledAt, prev = ci > 0 ? rounds[ci - 1] : null;
+    body = `<section class="card"><div class="head"><h2>Jornada ${ci + 1}</h2><p>${cap((dateOnly(d) === TODAY ? 'hoy, ' : '') + longDate(d))}</p></div><div class="tiles">${cur.map((m) => tile(m, href(m))).join('')}</div></section>
+      <div class="cols"><section class="card"><div class="head"><h2>Tabla de posiciones</h2><a href="#/publico/tabla">Ver tabla completa</a></div>${standingsTable(sid, true)}</section>
+        <div class="stack"><section class="card"><h2>Goleadores</h2>${scorersList(sid, 5)}</section>
+          ${prev ? `<section class="card"><div class="head"><h2>Jornada ${ci}</h2></div>${prev.map((m) => matchRow(m, href(m), true)).join('')}</section>` : ''}</div></div>`;
+  }
+  const tab = (h, name, label) => `<a href="${h}"${sub === name ? ' aria-current="page"' : ''}>${label}</a>`;
+  const seasons = leagueSeasons(lg.id);
+  return `<header class="pub-head">${PITCH}<div class="wrap">
+      <div class="row"><a class="logo" href="#/publico">${LOGO}SportsLeague</a>
+        <nav class="pub-tabs" aria-label="Secciones del sitio">${tab('#/publico', 'jornada', 'Jornada')}${tab('#/publico/calendario', 'calendario', 'Calendario')}${tab('#/publico/tabla', 'tabla', 'Tabla')}</nav>
+        <a class="btn btn-yellow btn-sm" href="${ACCOUNT ? '#/inicio' : '#/entrar'}">Panel de organizadores</a></div>
+      <div class="pub-title"><div><h1>${esc(lg.name)}</h1><p>${SPORT[lg.sport]}${catId ? `, categoría ${esc(category(catId).name)}` : ''}${sid ? `, temporada ${season(sid).year}` : ''}</p></div>
+        ${seasons.length ? `<label class="pick">Temporada<select data-change="pubSeason">${seasons.map((s) => `<option value="${s.id}"${s.id === sid ? ' selected' : ''}>${s.year}</option>`).join('')}</select></label>` : ''}</div>
+    </div></header>
+    <main class="page"><div class="wrap stack">${body}</div></main>
+    <footer class="foot"><div class="wrap"><span>${esc(lg.name)} en SportsLeague</span><a href="#/registro">Organiza tu liga</a></div></footer>`;
+}
+
+/* =========================================================
+   Enrutador
+   ========================================================= */
+function route() { const p = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean); return { name: p[0] || '', a: p[1], b: p[2] }; }
+const PANEL = { inicio: viewInicio, ligas: viewLigas, equipos: viewEquipos, arbitros: viewArbitros, calendario: viewCalendario, partidos: viewPartidos, estadisticas: viewEstadisticas };
+const TITLES = { registro: 'Crear cuenta', entrar: 'Iniciar sesión', inicio: 'Inicio', publico: 'Sitio público' };
+function enter(r) { // estado inicial al entrar a una vista
+  Object.assign(ui, { flash: null, editRule: null, availEdit: null, venueEdit: null, editEvent: null, gen: null });
+  if (LEAGUE && r.name !== 'publico') {
+    ui.season = defaultSeason(LEAGUE.id);
+    const m = r.name === 'partidos' && r.a ? match(Number(r.a)) : null;
+    if (m && leagueOfMatch(m) === LEAGUE.id) ui.season = m.seasonId;
+  }
+}
+function render() {
+  const r = route();
+  ACCOUNT = currentAccount(); LEAGUE = ACCOUNT ? league(ACCOUNT.leagueId) : null;
+  // Si la sesión cambió (por ejemplo, desde otra pestaña), se reinicia el estado de la vista
+  const accId = ACCOUNT ? ACCOUNT.id : null;
+  if (accId !== ui.accountId) { ui.accountId = accId; enter(r); }
+  if (!r.name) { location.replace(ACCOUNT ? '#/inicio' : '#/registro'); return; }
+  const app = document.getElementById('app');
+  if (r.name === 'registro' || r.name === 'entrar') {
+    if (ACCOUNT) { location.replace('#/inicio'); return; }
+    app.innerHTML = viewAuth(r.name);
+  } else if (r.name === 'publico') {
+    app.innerHTML = viewPublico(r);
+  } else {
+    if (!ACCOUNT) { location.replace('#/entrar'); return; }
+    if (!PANEL[r.name]) { location.replace('#/inicio'); return; }
+    app.innerHTML = shell(r.name, PANEL[r.name](r));
+  }
+  document.title = `${TITLES[r.name] || (sec(r.name) ? sec(r.name).label : '')} · SportsLeague`;
+}
+window.addEventListener('hashchange', () => {
+  const r = route(), key = r.name + '/' + (r.a || '') + '/' + (r.b || '');
+  ACCOUNT = currentAccount(); LEAGUE = ACCOUNT ? league(ACCOUNT.leagueId) : null;
+  if (key !== CURRENT) { CURRENT = key; enter(r); window.scrollTo(0, 0); }
+  render();
+});
+
+/* ---------- Acciones, formularios y cambios ---------- */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACTIONS = {
+  logout() { signOut(); location.hash = '#/entrar'; },
+  resetDemo() { if (!confirm('Se borrarán los cambios y la sesión, y se cargarán de nuevo los datos de ejemplo. ¿Continuar?')) return; clearDemoData(); loadData(); location.hash = '#/entrar'; render(); },
+  demo() { signIn(1); location.hash = '#/inicio'; },
+  editRule(el) { ui.editRule = Number(el.dataset.id); render(); const i = document.querySelector('[data-form="rule"] input'); if (i) i.focus(); },
+  cancelRule() { ui.editRule = null; render(); },
+  pickTeam(el) { ui.team = Number(el.dataset.id); render(); },
+  verifyPlayer(el) { // PUT /players/{id}/eligibility
+    const p = player(Number(el.dataset.id)), before = p.eligibilityStatus;
+    p.eligibilityStatus = eligibilityFor(team(p.teamId).categoryId, p.birthDate);
+    ok(`Jugador #${p.jerseyNumber} verificado: ${ELIG[p.eligibilityStatus].toLowerCase()}${before !== p.eligibilityStatus ? ` (antes estaba ${ELIG[before].toLowerCase()})` : ''}.`, 'player');
+  },
+  editAvail(el) { ui.availEdit = Number(el.dataset.id); render(); },
+  cancelAvail() { ui.availEdit = null; render(); },
+  editVenue(el) { ui.venueEdit = Number(el.dataset.id); render(); const i = document.querySelector('[data-form="venue"] input'); if (i) i.focus(); },
+  cancelVenue() { ui.venueEdit = null; render(); },
+  genPublish() { // POST /seasons/{id}/fixtures/generate -> fixture.published por jornada
+    const g = ui.gen; if (!g || !g.preview || seasonMatches(g.seasonId).length) return;
+    g.preview.list.forEach((x) => DB.matches.push({ id: nextId('match'), seasonId: g.seasonId, homeTeam: x.home, awayTeam: x.away, venue: x.venue, scheduledAt: x.date, status: 'programado' }));
+    const rounds = roundsOf(g.seasonId); let assigned = 0;
+    rounds.forEach((ms, i) => { assigned += assignReferees(ms, g.params.zone); notify(LEAGUE.id, TODAY, 'calendario', `Jornada ${i + 1} publicada: ${ms.length} partidos el ${longDate(ms[0].scheduledAt)}`); });
+    const total = g.preview.list.length, missing = total - assigned;
+    ui.gen = null;
+    ok(`Calendario publicado: ${total} partidos en ${rounds.length} jornadas. ${missing ? `${assigned} partidos ya tienen árbitro; ${missing} quedaron sin árbitro porque no hay árbitros de esa zona y categoría disponibles ese día.` : 'Todos los partidos ya tienen árbitro asignado.'}`);
+  },
+  editEvent(el) { ui.editEvent = Number(el.dataset.id); render(); },
+  cancelEvent() { ui.editEvent = null; render(); },
+};
+const FORMS = {
+  signup(fd, f) {
+    const name = String(fd.get('name')).trim(), email = String(fd.get('email')).trim().toLowerCase(), pass = String(fd.get('password')), pass2 = String(fd.get('password2'));
+    const leagueName = String(fd.get('leagueName')).trim(), sport = String(fd.get('sport'));
+    if (!name) return fail(f, 'Escribe tu nombre.');
+    if (!EMAIL.test(email)) return fail(f, 'Escribe un correo válido, por ejemplo nombre@correo.com.');
+    if (DB.accounts.some((a) => a.email === email)) return fail(f, 'Ya existe una cuenta con ese correo. Inicia sesión.');
+    if (pass.length < 8) return fail(f, 'La contraseña debe tener al menos 8 caracteres.');
+    if (pass !== pass2) return fail(f, 'Las contraseñas no coinciden.');
+    if (!leagueName) return fail(f, 'Escribe el nombre de tu liga.');
+    const lg = { id: nextId('league'), name: leagueName, sport }; DB.leagues.push(lg); // POST /leagues
+    const acc = { id: nextId('account'), name, email, leagueId: lg.id }; DB.accounts.push(acc); // la contraseña la guarda el backend como hash
+    save(); signIn(acc.id); location.hash = '#/inicio';
+  },
+  signin(fd, f) {
+    const email = String(fd.get('email')).trim().toLowerCase(), pass = String(fd.get('password'));
+    if (!email || !pass) return fail(f, 'Escribe tu correo y tu contraseña.');
+    const acc = DB.accounts.find((a) => a.email === email);
+    if (!acc) return fail(f, 'No hay una cuenta con ese correo. Revisa que esté bien escrito o crea una cuenta.');
+    signIn(acc.id); location.hash = '#/inicio'; // prototipo: la contraseña la verifica el API Gateway
+  },
+  season(fd, f) { // POST /leagues/{id}/seasons
+    const year = Number(fd.get('year')), start = String(fd.get('startDate')), end = String(fd.get('endDate'));
+    if (!(year >= 2000)) return fail(f, 'Escribe un año válido, por ejemplo 2027.');
+    if (!start || !end) return fail(f, 'Elige la fecha de inicio y la de fin.');
+    if (start >= end) return fail(f, 'La fecha de inicio debe ser anterior a la de fin.');
+    DB.seasons.push({ id: nextId('season'), leagueId: LEAGUE.id, year, startDate: start, endDate: end });
+    if (!ui.season) ui.season = defaultSeason(LEAGUE.id);
+    ok(`Temporada ${year} creada.`, 'season');
+  },
+  category(fd, f) { // POST /seasons/{id}/categories
+    const name = String(fd.get('name')).trim(), ar = String(fd.get('ageRange')).trim();
+    if (!name) return fail(f, 'Escribe el nombre de la categoría.');
+    if (!/^\d{1,2}-\d{1,2}$/.test(ar)) return fail(f, 'Escribe el rango de edad como mínimo-máximo, por ejemplo 15-17.');
+    const { min, max } = parseRange(ar);
+    if (min > max) return fail(f, 'En el rango de edad, la edad mínima no puede ser mayor que la máxima.');
+    const c = { id: nextId('category'), leagueId: LEAGUE.id, name, ageRange: ar }; DB.categories.push(c);
+    ui.editRule = c.id;
+    ok(`Categoría ${name} creada. Ahora define su reglamento.`, 'rule');
+  },
+  rule(fd, f) { // PUT /categories/{id}/rules
+    const catId = Number(f.dataset.cat), pw = Number(fd.get('pointsWin')), pd = Number(fd.get('pointsDraw')), tb = String(fd.get('tiebreakerCriteria'));
+    if (!Number.isInteger(pw) || pw < 0 || !Number.isInteger(pd) || pd < 0) return fail(f, 'Los puntos deben ser números enteros desde 0.');
+    const r = ruleOf(catId);
+    if (r) Object.assign(r, { pointsWin: pw, pointsDraw: pd, tiebreakerCriteria: tb });
+    else DB.rules.push({ id: nextId('rule'), categoryId: catId, pointsWin: pw, pointsDraw: pd, tiebreakerCriteria: tb });
+    ui.editRule = null;
+    ok(`Reglamento de ${category(catId).name} guardado. Las tablas de posiciones ya usan estos puntos.`, 'rule');
+  },
+  team(fd, f) { // POST /teams
+    const name = String(fd.get('name')).trim();
+    if (!name) return fail(f, 'Escribe el nombre del equipo.');
+    if (teamsOf(ui.category).some((t) => t.name.toLowerCase() === name.toLowerCase())) return fail(f, `Ya hay un equipo llamado ${name} en esta categoría.`);
+    const t = { id: nextId('team'), name, categoryId: ui.category }; DB.teams.push(t); ui.team = t.id;
+    ok(`${name} registrado en ${category(t.categoryId).name}.`, 'team');
+  },
+  player(fd, f) { // POST /teams/{id}/players
+    const t = team(ui.team), bd = String(fd.get('birthDate')), j = Number(fd.get('jerseyNumber'));
+    if (!bd) return fail(f, 'Elige la fecha de nacimiento.');
+    if (!Number.isInteger(j) || j < 1) return fail(f, 'Escribe un número de camiseta desde 1.');
+    const status = eligibilityFor(t.categoryId, bd), c = category(t.categoryId), { min, max } = parseRange(c.ageRange);
+    DB.players.push({ id: nextId('player'), teamId: t.id, birthDate: bd, eligibilityStatus: status, jerseyNumber: j });
+    ok(`Jugador #${j} fichado en ${t.name}: ${ELIG[status].toLowerCase()}. Tiene ${ageAt(bd)} años y ${c.name} admite de ${min} a ${max}.`, 'player');
+  },
+  referee(fd, f) { // POST /referees
+    const zone = String(fd.get('zone')).trim(), cats = fd.getAll('categories').map(Number), days = fd.getAll('days');
+    if (!zone) return fail(f, 'Escribe la zona del árbitro.');
+    if (!cats.length) return fail(f, 'Elige al menos una categoría certificada.');
+    if (!days.length) return fail(f, 'Elige al menos un día disponible.');
+    const r = { id: nextId('referee'), zone, categoriesCertified: cats, availability: days }; DB.referees.push(r);
+    ok(`Árbitro #${r.id} registrado. Recibirá partidos de las jornadas que se publiquen.`, 'referee');
+  },
+  avail(fd, f) { // PUT /referees/{id}/availability
+    const days = fd.getAll('days'), r = byId(DB.referees, Number(f.dataset.ref));
+    if (!days.length) return fail(f, 'Elige al menos un día disponible.');
+    r.availability = days; ui.availEdit = null;
+    ok(`Disponibilidad del árbitro #${r.id} actualizada.`);
+  },
+  venue(fd, f) { // PUT /matches/{id}/venue
+    const m = match(Number(f.dataset.match)), v = String(fd.get('venue')).trim();
+    if (!v) return fail(f, 'Escribe el nombre de la cancha.');
+    if (v === m.venue) return fail(f, 'Esa ya es la cancha del partido.');
+    m.venue = v; ui.venueEdit = null;
+    const text = `${team(m.homeTeam).name} contra ${team(m.awayTeam).name} ahora se juega en ${v}`;
+    notify(LEAGUE.id, TODAY, 'sede', `Cambio de sede: ${text}`);
+    ok(`Sede cambiada y aviso enviado: ${text}.`);
+  },
+  genPreview(fd) {
+    ui.gen.params = readGen(fd);
+    const res = buildFixture(ui.gen.params);
+    ui.gen.error = res.error || null; ui.gen.preview = res.error ? null : res;
+    render();
+    const target = document.querySelector('#gen-form .form-msg, .rounds');
+    if (target) target.scrollIntoView({ block: 'nearest' });
+  },
+  eventFix(fd, f) { // corrección del acta -> recálculo idempotente
+    const e = byId(DB.events, Number(f.dataset.event)), m = match(e.matchId);
+    const minute = Number(fd.get('minute')), type = String(fd.get('type')), side = String(fd.get('side')), j = Number(fd.get('jersey'));
+    if (!(minute >= 1 && minute <= 120)) return fail(f, 'El minuto debe estar entre 1 y 120.');
+    const tid = side === 'home' ? m.homeTeam : m.awayTeam, p = DB.players.find((x) => x.teamId === tid && x.jerseyNumber === j);
+    if (!p) return fail(f, `${team(tid).name} no tiene un jugador con la camiseta #${j}.`);
+    Object.assign(e, { minute, type, teamId: tid, playerId: p.id }); ui.editEvent = null;
+    ok('Acta corregida. El marcador, la tabla, los goleadores y las tarjetas se recalcularon.', 'eventFix');
+  },
+};
+const CHANGES = {
+  season(v) { Object.assign(ui, { season: Number(v), venueEdit: null, gen: null }); render(); },
+  category(v) { ui.category = Number(v); ui.team = null; render(); },
+  pubSeason(v) { ui.pubSeason = Number(v); render(); },
+  genCategory(v) {
+    ui.gen.params = { ...readGen(new FormData(document.getElementById('gen-form'))), categoryId: Number(v), teamIds: teamsOf(Number(v)).map((t) => t.id) };
+    ui.gen.preview = null; ui.gen.error = null; render();
+  },
+};
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action]'); if (!el || !ACTIONS[el.dataset.action]) return;
+  ui.flash = null; ACTIONS[el.dataset.action](el, e);
+});
+document.addEventListener('submit', (e) => {
+  const f = e.target.closest('form[data-form]'); if (!f || !FORMS[f.dataset.form]) return;
+  e.preventDefault(); FORMS[f.dataset.form](new FormData(f), f);
+});
+document.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-change]'); if (el && CHANGES[el.dataset.change]) CHANGES[el.dataset.change](el.value);
+});
+// Cerrar el menú de cuenta al hacer clic fuera
+document.addEventListener('click', (e) => { document.querySelectorAll('details.menu[open]').forEach((d) => { if (!d.contains(e.target)) d.removeAttribute('open'); }); });
+
+/* ---------- Partido en curso (match.event y match.completed) ---------- */
+setInterval(() => {
+  const r = liveTick(); if (!r) return;
+  document.querySelectorAll(`[data-live-minute="${r.matchId}"]`).forEach((el) => { el.textContent = `${r.minute}'`; });
+  if (r.announce) document.getElementById('announcer').textContent = r.announce;
+  const name = route().name;
+  // Solo se redibujan las vistas sin formularios, para no borrar lo que alguien esté escribiendo
+  if (r.changed && ['inicio', 'partidos', 'estadisticas', 'publico'].includes(name) && ui.editEvent === null) render();
+}, 2000);
+
+/* ---------- Arranque ---------- */
+(() => { const r = route(); ACCOUNT = currentAccount(); LEAGUE = ACCOUNT ? league(ACCOUNT.leagueId) : null; CURRENT = r.name + '/' + (r.a || '') + '/' + (r.b || ''); enter(r); render(); })();
+
+</script>
+</body>
+</html>

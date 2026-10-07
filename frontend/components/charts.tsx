@@ -15,21 +15,3 @@ export function Spark({ series, max, label }: { series: number[]; max: number; l
     </svg>
   );
 }
-
-/** Barras horizontales de una sola serie, con el valor en la punta y el detalle al pasar el mouse. */
-export function BarList({ rows, unit }: { rows: Array<{ id: number; label: string; value: number }>; unit: string }) {
-  const max = Math.max(1, ...rows.map((r) => r.value));
-  return (
-    <ul className="bars">
-      {rows.map((r) => (
-        <li key={r.id} title={`${r.label}: ${r.value.toLocaleString("es-CO")} ${unit}`}>
-          <span>{r.label}</span>
-          <span className="bar">
-            <i style={{ width: `${Math.max(2, (r.value / max) * 82)}%` }} />
-            {r.value.toLocaleString("es-CO")}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}

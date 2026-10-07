@@ -134,7 +134,7 @@ export function LoginRequired({ role }: { role?: string }) {
       <EmptyCard
         title={role ? `Esta sección es para ${role}` : "Esta sección requiere una cuenta"}
         text="Inicia sesión para continuar."
-        href="/login"
+        href="/entrar"
         label="Iniciar sesión"
       />
     </Page>

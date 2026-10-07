@@ -15,7 +15,7 @@ export interface Section {
 export const SECTIONS: Section[] = [
   {
     id: "ligas",
-    href: "/organizador/ligas",
+    href: "/ligas",
     label: "Ligas y reglamento",
     short: "Ligas",
     desc: "Temporadas, categorías y cómo se cuentan los puntos.",
@@ -24,7 +24,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "equipos",
-    href: "/organizador/equipos",
+    href: "/equipos",
     label: "Equipos y jugadores",
     short: "Equipos",
     desc: "Plantillas y elegibilidad por edad.",
@@ -33,7 +33,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "arbitros",
-    href: "/organizador/arbitros",
+    href: "/arbitros",
     label: "Árbitros",
     short: "Árbitros",
     desc: "Zona, categorías y días disponibles.",
@@ -43,7 +43,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "calendario",
-    href: "/organizador/calendario",
+    href: "/calendario",
     label: "Calendario",
     short: "Calendario",
     desc: "Genera la temporada y cambia sedes.",
@@ -52,7 +52,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "partidos",
-    href: "/organizador/partidos",
+    href: "/partidos",
     label: "Partidos y actas",
     short: "Partidos",
     desc: "Partidos en curso y corrección de actas.",
@@ -62,16 +62,16 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "estadisticas",
-    href: "/organizador/estadisticas",
+    href: "/estadisticas",
     label: "Estadísticas",
     short: "Estadísticas",
-    desc: "Tabla, goleadores, asistencia y rendimiento.",
+    desc: "Tabla, goleadores, tarjetas y rendimiento.",
     intro: "Se recalculan cada vez que termina un partido o se corrige un acta.",
     service: "Statistics y Analytics",
   },
   {
     id: "publico",
-    href: "/",
+    href: "/publico",
     label: "Sitio público",
     short: "Sitio público",
     desc: "Lo que ven los equipos y los seguidores.",

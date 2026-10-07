@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import FixtureSection from "@/components/organizer/fixture";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Calendario" };
-
-export default function Page() {
-  return <FixtureSection />;
+/** Ruta anterior del panel: ahora es /calendario, como en el diseño. */
+export default function OldRoute() {
+  redirect("/calendario");
 }

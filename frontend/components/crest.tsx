@@ -43,8 +43,9 @@ function colorOf(name: string) {
   return PALETTE[h % PALETTE.length];
 }
 
-export default function Crest({ name, size = 32 }: { name: string; size?: number }) {
-  const c = colorOf(name);
+/** Con el id del equipo el color es el del diseño (PALETTE[(id - 1) % 14]); sin él, sale del nombre. */
+export default function Crest({ name, id, size = 32 }: { name: string; id?: number; size?: number }) {
+  const c = id ? PALETTE[(id - 1) % PALETTE.length] : colorOf(name);
   return (
     <span className="crest" style={{ "--s": `${size}px`, "--c1": c, "--c2": inkFor(c) } as React.CSSProperties} aria-hidden>
       {initials(name)}

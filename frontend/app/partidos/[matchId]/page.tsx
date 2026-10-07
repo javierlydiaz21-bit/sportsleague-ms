@@ -1,31 +1,28 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import LiveBoard from "@/components/live-board";
-import StandingsTable from "@/components/standings-table";
-import { Page } from "@/components/ui";
-import { findSeason, formByTeam, seasonMatches, teamName, teamsById } from "@/lib/server-data";
+import MatchDetail from "@/components/live-board";
+import { seasonMatches, teamName, teamsById } from "@/lib/server-data";
 import { getJson } from "@/lib/services";
-import type { LiveMatch, Match, Standings } from "@/lib/types";
+import type { LiveMatch, Match } from "@/lib/types";
 
+/** Partido (Fixture), equipos con su plantilla (Team), marcador (Live Score) y jornada. */
 async function load(matchId: number) {
   const match = await getJson<Match>(`/matches/${matchId}`);
   if (!match) return null;
-  const [teams, live, found, matches, standings] = await Promise.all([
+  const [teams, live, matches] = await Promise.all([
     teamsById([match.homeTeam, match.awayTeam]),
     getJson<LiveMatch>(`/matches/${matchId}/live`),
-    findSeason(match.seasonId),
     seasonMatches(match.seasonId),
-    getJson<Standings>(`/standings/${match.seasonId}`),
   ]);
-  return { match, teams, live, found, matches, standings };
+  return { match, teams, live, jornada: matches?.find((m) => m.id === match.id)?.jornada ?? null };
 }
 
 export async function generateMetadata({ params }: PageProps<"/partidos/[matchId]">): Promise<Metadata> {
   const data = await load(Number((await params).matchId));
   if (!data) return { title: "Partido" };
   const title = `${teamName(data.teams, data.match.homeTeam)} vs ${teamName(data.teams, data.match.awayTeam)}`;
-  return { title, description: `Marcador en vivo, eventos y plantillas de ${title}.` };
+  return { title, description: `Marcador en vivo y eventos de ${title}.` };
 }
 
 export default async function MatchPage({ params }: PageProps<"/partidos/[matchId]">) {
@@ -34,39 +31,8 @@ export default async function MatchPage({ params }: PageProps<"/partidos/[matchI
   if (!Number.isInteger(matchId) || matchId < 1) notFound();
   const data = await load(matchId);
   if (!data) notFound();
-  const { match, teams, live, found, matches, standings } = data;
+  const { match, teams, live, jornada } = data;
   const home = teams.get(match.homeTeam) ?? { id: match.homeTeam, name: `Equipo ${match.homeTeam}`, categoryId: 0, players: [] };
   const away = teams.get(match.awayTeam) ?? { id: match.awayTeam, name: `Equipo ${match.awayTeam}`, categoryId: 0, players: [] };
-
-  // Tabla de la temporada con los dos equipos resaltados (pestaña "Tabla")
-  const allTeams = await teamsById((standings?.standings ?? []).map((s) => s.teamId));
-  const names = new Map([...allTeams].map(([id, t]) => [id, t.name]));
-  const table =
-    standings && standings.standings.length > 0 ? (
-      <StandingsTable
-        rows={standings.standings}
-        names={names}
-        form={formByTeam(matches ?? [])}
-        highlight={[match.homeTeam, match.awayTeam]}
-      />
-    ) : (
-      <p className="empty">La tabla de esta temporada todavía no está disponible.</p>
-    );
-
-  return (
-    <Page>
-      <LiveBoard
-        match={match}
-        home={home}
-        away={away}
-        initial={live}
-        competition={{
-          seasonId: match.seasonId,
-          name: found?.league.name ?? `Temporada ${match.seasonId}`,
-          jornada: matches?.find((m) => m.id === match.id)?.jornada ?? null,
-        }}
-        table={table}
-      />
-    </Page>
-  );
+  return <MatchDetail match={match} home={home} away={away} initial={live} jornada={jornada} />;
 }
