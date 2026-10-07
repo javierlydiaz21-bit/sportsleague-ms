@@ -15,6 +15,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { CourtArt } from "@/components/court-art";
 import { Check, Icon, Pitch } from "@/components/icons";
 import { useLeague } from "@/components/league-context";
 import { MatchTile } from "@/components/match-row";
@@ -22,7 +23,7 @@ import StandingsTable from "@/components/standings-table";
 import { EmptyCard, LoginRequired, Notice } from "@/components/ui";
 import { seasonMatches, type MatchView } from "@/lib/server-data";
 import { SECTIONS, type SectionId } from "@/lib/sections";
-import { SPORT_LABEL, TIEBREAKER_LABEL, cap, longDate, shortDate, utcDate } from "@/lib/services";
+import { TIEBREAKER_LABEL, cap, longDate, shortDate, utcDate } from "@/lib/services";
 import { api, useSession } from "@/lib/session";
 import { useLoad } from "@/lib/use-api";
 import type { League, Match, NotificationFeed, Referee, Season, Standings, Team } from "@/lib/types";
@@ -120,7 +121,6 @@ export default function PanelHome() {
   const done = STEPS.filter((s) => st[s]).length;
   const next = STEPS.find((s) => !st[s]);
   const setup = Boolean(o || (leagues && !league)) && done < STEPS.length;
-  const first = user.name.trim().split(/\s+/)[0];
 
   const kitStat = (id: SectionId) => {
     if (id === "ligas") return `${plural(seasons.length, "temporada", "temporadas")}, ${plural(categories.length, "categoría", "categorías")}`;
@@ -147,17 +147,8 @@ export default function PanelHome() {
       <section className="hello">
         <Pitch />
         <div className="wrap">
-          <div>
-            <h1>Hola, {first}</h1>
-            <p>
-              {league
-                ? `${league.name}, ${(SPORT_LABEL[league.sport] ?? league.sport).toLowerCase()}.`
-                : leagues
-                  ? "Crea tu liga en Ligas y reglamento."
-                  : ""}
-              {setup && " En cuatro pasos tu liga queda lista para jugar."}
-            </p>
-          </div>
+          <h1 className="sr-only">Inicio</h1>
+          <CourtArt sport={league?.sport} />
           {setup && (
             <div className="progress" role="img" aria-label={`${done} de ${STEPS.length} pasos listos`}>
               <div className="progress-bar">
