@@ -15,7 +15,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CourtArt } from "@/components/court-art";
 import { Check, Icon, Pitch } from "@/components/icons";
 import { useLeague } from "@/components/league-context";
 import { MatchTile } from "@/components/match-row";
@@ -147,8 +146,7 @@ export default function PanelHome() {
       <section className="hello">
         <Pitch />
         <div className="wrap">
-          <h1 className="sr-only">Inicio</h1>
-          <CourtArt sport={league?.sport} />
+          <h1>SportsLeague</h1>
           {setup && (
             <div className="progress" role="img" aria-label={`${done} de ${STEPS.length} pasos listos`}>
               <div className="progress-bar">

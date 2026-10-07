@@ -1552,35 +1552,6 @@
     font-size: clamp(2.8rem, 6vw, 4.6rem);
     color: #fff;
   }
-  /* Cancha de la liga en trazo fino, como una pizarra táctica */
-  .court-art {
-    display: block;
-    height: clamp(130px, 22vw, 200px);
-    width: auto;
-    max-width: 100%;
-    fill: none;
-    stroke: rgba(238, 241, 247, 0.6);
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .court-art .gold-line {
-    stroke: var(--gold);
-  }
-  .court-art .net {
-    stroke: #fff;
-  }
-  .court-art .player {
-    fill: var(--navy);
-    stroke: #fff;
-  }
-  .court-art .move {
-    stroke: var(--gold);
-    stroke-dasharray: var(--dash);
-  }
-  .court-art .ball {
-    fill: var(--gold);
-    stroke: none;
-  }
   .hello p {
     margin-top: 12px;
     font-size: 1.06rem;
