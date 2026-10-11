@@ -33,6 +33,8 @@ export interface Route {
 export const ROUTES: Route[] = [
   // League Service (2.2)
   { method: 'GET', pattern: /^\/leagues(?:\/\d+)?$/, service: 'league', access: 'public' },
+  // "Mis ligas": el gateway reenvia x-user-id y el League Service filtra por propietario
+  { method: 'GET', pattern: /^\/leagues\/mine$/, service: 'league', access: 'organizador' },
   { method: 'POST', pattern: /^\/leagues$/, service: 'league', access: 'organizador' },
   { method: 'POST', pattern: /^\/leagues\/\d+\/seasons$/, service: 'league', access: 'organizador' },
   { method: 'POST', pattern: /^\/seasons\/\d+\/categories$/, service: 'league', access: 'organizador' },

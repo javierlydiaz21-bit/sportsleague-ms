@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LeaguesService } from './leagues.service';
+import { userIdOf } from './leagues.controller';
 
 function build(league: any = { id: 1, name: 'Liga', sport: 'futbol' }) {
   const prisma: any = {
@@ -45,5 +46,39 @@ describe('LeaguesService', () => {
   it('GET /leagues/{id} responde 404 si la liga no existe', async () => {
     const { service } = build(null);
     await expect(service.findOne(9)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('guarda como propietario al usuario que crea la liga', async () => {
+    const { service, prisma } = build();
+    const l = await service.create({ name: 'Liga Nueva', sport: 'futbol' }, 7);
+    expect(prisma.league.create).toHaveBeenCalledWith({ data: { name: 'Liga Nueva', sport: 'futbol', ownerId: 7 } });
+    expect(l.ownerId).toBe(7);
+  });
+
+  it('sin usuario la liga queda sin propietario (compatible con llamadas anteriores)', async () => {
+    const { service, prisma } = build();
+    await service.create({ name: 'Liga', sport: 'voley' });
+    expect(prisma.league.create).toHaveBeenCalledWith({ data: { name: 'Liga', sport: 'voley', ownerId: null } });
+  });
+
+  it('"Mis ligas" filtra por propietario: las ligas sin propietario no aparecen', async () => {
+    const { service, prisma } = build();
+    await service.findMine(7);
+    expect(prisma.league.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: 7 } }));
+  });
+
+  it('solo acepta como usuario un entero positivo en x-user-id', () => {
+    expect(userIdOf('12')).toBe(12);
+    expect(userIdOf(undefined)).toBeNull();
+    expect(userIdOf('abc')).toBeNull();
+    expect(userIdOf('0')).toBeNull();
+    expect(userIdOf('-3')).toBeNull();
+    expect(userIdOf('1.5')).toBeNull();
+  });
+
+  it('"Mis ligas" sin usuario responde 400 en vez de listar todas', async () => {
+    const { service, prisma } = build();
+    expect(() => service.findMine(null)).toThrow(BadRequestException);
+    expect(prisma.league.findMany).not.toHaveBeenCalled();
   });
 });

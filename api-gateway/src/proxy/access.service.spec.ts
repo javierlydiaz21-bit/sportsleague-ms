@@ -59,6 +59,16 @@ describe('AccessService.authorize (permisos diferenciados, 10.2)', () => {
     );
   });
 
+  it('"Mis ligas" va al League Service y exige sesion de organizador', async () => {
+    const mine = route('GET', '/leagues/mine');
+    expect(mine.route.service).toBe('league');
+    await expect(build().authorize(mine, null, {})).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(build().authorize(mine, user('espectador'), {})).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(build().authorize(mine, user('organizador'), {})).resolves.toBeUndefined();
+    // La lista publica de ligas sigue igual
+    expect(route('GET', '/leagues').route.access).toBe('public');
+  });
+
   it('el organizador puede todo', async () => {
     await expect(build().authorize(route('POST', '/matches/99/events'), user('organizador'), {})).resolves.toBeUndefined();
   });

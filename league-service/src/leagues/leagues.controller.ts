@@ -1,20 +1,27 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Headers, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LeaguesService } from './leagues.service';
 import { CreateLeagueDto } from './dto/create-league.dto';
 import { CreateSeasonDto } from './dto/create-season.dto';
+
+/** Usuario autenticado que reenvia el API Gateway (x-user-id); null si no viene o no es valido. */
+export function userIdOf(header?: string): number | null {
+  const id = Number(header);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
 
 @ApiTags('leagues')
 @Controller('leagues')
 export class LeaguesController {
   constructor(private readonly leaguesService: LeaguesService) {}
 
-  // POST /api/v1/leagues
+  // POST /api/v1/leagues — la liga queda a nombre del usuario que la crea
   @Post()
   @ApiOperation({ summary: 'Crear una liga' })
+  @ApiHeader({ name: 'x-user-id', required: false, description: 'Usuario autenticado (lo agrega el API Gateway)' })
   @ApiResponse({ status: 201, description: 'Liga creada.' })
-  create(@Body() dto: CreateLeagueDto) {
-    return this.leaguesService.create(dto);
+  create(@Body() dto: CreateLeagueDto, @Headers('x-user-id') userId?: string) {
+    return this.leaguesService.create(dto, userIdOf(userId));
   }
 
   // GET /api/v1/leagues — lectura de apoyo para la web: ligas con sus temporadas y categorias
@@ -22,6 +29,15 @@ export class LeaguesController {
   @ApiOperation({ summary: 'Listar las ligas con sus temporadas y categorias' })
   findAll() {
     return this.leaguesService.findAll();
+  }
+
+  // GET /api/v1/leagues/mine — "Mis ligas": solo las creadas por el usuario (va antes de :id)
+  @Get('mine')
+  @ApiOperation({ summary: 'Listar las ligas del organizador autenticado' })
+  @ApiHeader({ name: 'x-user-id', required: true, description: 'Usuario autenticado (lo agrega el API Gateway)' })
+  @ApiResponse({ status: 400, description: 'Falta el usuario.' })
+  findMine(@Headers('x-user-id') userId?: string) {
+    return this.leaguesService.findMine(userIdOf(userId));
   }
 
   // GET /api/v1/leagues/{id}

@@ -7,8 +7,9 @@ import { CreateSeasonDto } from './dto/create-season.dto';
 export class LeaguesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateLeagueDto) {
-    return this.prisma.league.create({ data: dto });
+  /** Crea la liga a nombre de quien la pide (x-user-id que envia el API Gateway). */
+  create(dto: CreateLeagueDto, ownerId: number | null = null) {
+    return this.prisma.league.create({ data: { ...dto, ownerId } });
   }
 
   private readonly withChildren = {
@@ -18,6 +19,14 @@ export class LeaguesService {
 
   findAll() {
     return this.prisma.league.findMany({ include: this.withChildren, orderBy: { id: 'asc' } });
+  }
+
+  /** Ligas del organizador (las ligas sin propietario no aparecen). */
+  findMine(ownerId: number | null) {
+    if (!ownerId) {
+      throw new BadRequestException('Falta el usuario: consulte sus ligas a traves del API Gateway');
+    }
+    return this.prisma.league.findMany({ where: { ownerId }, include: this.withChildren, orderBy: { id: 'desc' } });
   }
 
   async findOne(id: number) {

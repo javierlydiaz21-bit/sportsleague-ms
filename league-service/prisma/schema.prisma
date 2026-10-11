@@ -16,13 +16,16 @@ datasource db {
 }
 
 model League {
-  id    Int    @id @default(autoincrement())
-  name  String // restriccion: NOT NULL
-  sport String // restriccion: NOT NULL
+  id      Int    @id @default(autoincrement())
+  name    String // restriccion: NOT NULL
+  sport   String // restriccion: NOT NULL
+  // Usuario del API Gateway que creo la liga. Las ligas anteriores a esta columna quedan sin propietario (NULL).
+  ownerId Int?   @map("owner_id")
 
   seasons    Season[]
   categories Category[]
 
+  @@index([ownerId])
   @@map("leagues")
 }
 
