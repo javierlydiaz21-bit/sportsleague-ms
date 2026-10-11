@@ -86,10 +86,12 @@ const WAKE_DELAY_MS = 6000;
  */
 const isWaking = (res: Response) => res.status >= 502 && !res.headers.get("content-type")?.includes("json");
 
-async function request(method: string, path: string, body: unknown, token?: string) {
+async function request(method: string, path: string, body: unknown, token?: string, idempotencyKey?: string) {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
+  // Los reintentos de abajo llevan la misma clave: el gateway procesa la escritura una sola vez
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   for (let attempt = 0; ; attempt++) {
     try {
       const res = await fetch(`${API_URL}/api/v1${path}`, {
@@ -123,11 +125,18 @@ function refreshSession(): Promise<Session | null> {
 }
 
 /** Llamada al API Gateway con el token de la sesion; renueva el token si vencio. */
+/** Clave de una escritura (Idempotency-Key): si se reintenta, el gateway no la repite. */
+function writeKey(method: string) {
+  if (!["POST", "PUT", "PATCH"].includes(method) || typeof crypto === "undefined" || !crypto.randomUUID) return undefined;
+  return crypto.randomUUID();
+}
+
 export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-  let res = await request(method, path, body, read()?.accessToken);
+  const key = writeKey(method);
+  let res = await request(method, path, body, read()?.accessToken, key);
   if (res?.status === 401 && read()) {
     const renewed = await refreshSession();
-    if (renewed) res = await request(method, path, body, renewed.accessToken);
+    if (renewed) res = await request(method, path, body, renewed.accessToken, key);
   }
   if (!res) throw new ApiError(errorMessage(null, 0), 0);
   const data = await res.json().catch(() => null);
