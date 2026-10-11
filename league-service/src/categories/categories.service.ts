@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateRulesDto } from './dto/update-rules.dto';
 
@@ -27,6 +27,9 @@ export class CategoriesService {
 
   /** Crea o reemplaza el reglamento (un solo reglamento vigente por categoria). */
   async updateRules(categoryId: number, dto: UpdateRulesDto) {
+    if (dto.pointsDraw > dto.pointsWin) {
+      throw new BadRequestException('pointsDraw no puede ser mayor que pointsWin');
+    }
     await this.findOne(categoryId);
     return this.prisma.rule.upsert({
       where: { categoryId },

@@ -1,6 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
+import { internalHeaders } from '../security/internal-auth';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -43,7 +44,7 @@ export class ResilientHttpService {
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        const res = await firstValueFrom(this.http.get<T>(url, { timeout: this.timeoutMs }));
+        const res = await firstValueFrom(this.http.get<T>(url, { timeout: this.timeoutMs, headers: internalHeaders() }));
         breaker.failures = 0;
         return { status: res.status, data: res.data };
       } catch (err: any) {

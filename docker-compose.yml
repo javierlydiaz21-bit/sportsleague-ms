@@ -168,6 +168,8 @@ services:
     environment:
       PORT: 3001
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://fixture_user:fixture_pass@fixture-db:5432/fixture_db?schema=public
       REDIS_URL: redis://redis:6379
       LEAGUE_SERVICE_URL: http://league-service:3003
@@ -190,6 +192,8 @@ services:
     environment:
       PORT: 3002
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://referee_user:referee_pass@referee-db:5432/referee_db?schema=public
       REDIS_URL: redis://redis:6379
     ports:
@@ -206,6 +210,8 @@ services:
     environment:
       PORT: 3003
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://league_user:league_pass@league-db:5432/league_db?schema=public
     ports:
       - 3003:3003
@@ -219,6 +225,8 @@ services:
     environment:
       PORT: 3004
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://team_user:team_pass@team-db:5432/team_db?schema=public
       LEAGUE_SERVICE_URL: http://league-service:3003
     ports:
@@ -235,6 +243,8 @@ services:
     environment:
       PORT: 3005
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://live_score_user:live_score_pass@live-score-db:5432/live_score_db?schema=public
       REDIS_URL: redis://redis:6379
       FIXTURE_SERVICE_URL: http://fixture-service:3001
@@ -254,6 +264,8 @@ services:
     environment:
       PORT: 3006
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://statistics_user:statistics_pass@statistics-db:5432/statistics_db?schema=public
       REDIS_URL: redis://redis:6379
       LEAGUE_SERVICE_URL: http://league-service:3003
@@ -271,6 +283,8 @@ services:
     environment:
       PORT: 3007
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://notification_user:notification_pass@notification-db:5432/notification_db?schema=public
       REDIS_URL: redis://redis:6379
       TEAM_SERVICE_URL: http://team-service:3004
@@ -288,6 +302,8 @@ services:
     environment:
       PORT: 3008
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://analytics_user:analytics_pass@analytics-db:5432/analytics_db?schema=public
       # En produccion serian replicas de solo lectura; aqui las conexiones se abren en modo solo lectura
       FIXTURE_REPLICA_URL: postgresql://fixture_user:fixture_pass@fixture-db:5432/fixture_db
@@ -313,6 +329,8 @@ services:
     environment:
       PORT: 8080
       NODE_ENV: production
+      # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://gateway_user:gateway_pass@gateway-db:5432/gateway_db?schema=public
       REDIS_URL: redis://redis:6379
       JWT_SECRET: secreto-solo-para-desarrollo-local

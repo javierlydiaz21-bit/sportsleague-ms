@@ -10,12 +10,14 @@ desempate.
 |---|---|---|
 | Lenguaje | NestJS + Prisma | NestJS + Prisma ✅ |
 | Base de datos | League DB (PostgreSQL) | `league_db` (PostgreSQL 16) ✅ |
-| Tabla `leagues` | id, name, sport | id, name, sport ✅ |
+| Tabla `leagues` | id, name, sport | id, name, sport ✅ y `owner_id` (adición, opcional: el organizador que la creó; las ligas anteriores quedan sin propietario) |
 | Tabla `seasons` | league_id, year, start_date, end_date | id, league_id, year, start_date, end_date ✅ |
 | Tabla `categories` | league_id, name, age_range | id, league_id, name, age_range ✅ |
 | Tabla `rules` | category_id, points_win, points_draw, tiebreaker_criteria | id, category_id, points_win, points_draw, tiebreaker_criteria ✅ |
 | Índices (3.2) | seasons.league_id, categories.league_id, rules.category_id | los tres ✅ |
 | Restricciones (3.2) | name/sport NOT NULL · start_date < end_date · age_range obligatorio · rules.category_id único | todas ✅ |
+| Validaciones (adición) | — | deporte `futbol`, `basquet` o `voley`; desempate de los que reconoce el Statistics Service (`diferencia_de_goles`, `goles_a_favor`, `partidos_ganados`); empate ≤ victoria; año de la temporada coherente con sus fechas; categoría sin nombre repetido en la liga; 409 si el mismo organizador repite el nombre de una liga (salvo `confirmDuplicate`) |
+| Seguridad | Solo se accede por el API Gateway | ✅ rechaza con 401 las llamadas sin `x-internal-token` (`INTERNAL_TOKEN`) |
 | Comunicación | Síncrona (REST), consultado por otros servicios | Síncrona (REST) ✅ |
 | Eventos | No consume eventos | No publica ni consume ✅ |
 
@@ -33,6 +35,9 @@ Además, como en todos los servicios: `GET /api/v1/health` y
 `GET /api/v1/status` (documento, 9.3), y la documentación en `/docs`.
 
 **Endpoints de apoyo:**
+
+- `GET /api/v1/leagues/mine`: "Mis ligas", las ligas del organizador que envía el
+  API Gateway en `x-user-id`.
 
 - `GET /api/v1/categories/{id}`: la consulta REST puntual con la que el Team
   Service lee el `age_range` (el documento dice en 3.2 que `age_range` es

@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AuthUser } from '../auth/auth.service';
+import { internalHeaders } from '../config/internal';
 import { serviceUrl } from '../config/services';
 import { MatchedRoute } from './routes';
 
@@ -22,6 +23,7 @@ export class AccessService {
   async assignmentsOf(refereeId: number): Promise<Assignment[]> {
     try {
       const res = await fetch(`${serviceUrl('referee')}/api/v1/referees/${refereeId}/assignments`, {
+        headers: internalHeaders(),
         signal: AbortSignal.timeout(this.timeoutMs),
       });
       if (res.status === 404) return [];

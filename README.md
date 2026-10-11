@@ -101,3 +101,8 @@ npm test
   privada de Render, y el gateway los encuentra por las variables
   `*_SERVICE_URL`. En el gateway configura además `JWT_SECRET`,
   `ADMIN_PASSWORD` y `CORS_ORIGINS` (la URL de Vercel).
+- **Token interno:** si los servicios quedan con URL pública (plan gratuito),
+  configura el mismo `INTERNAL_TOKEN` secreto en los nueve servicios. Cada
+  microservicio rechaza con 401 lo que no traiga ese token, así nadie puede
+  saltarse el gateway. `INTERNAL_AUTH=report` permite activarlo por pasos:
+  primero solo registra las llamadas sin token y después se cambia a `enforce`.

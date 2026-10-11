@@ -3,9 +3,13 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 import { AppModule } from './app.module';
+import { internalAuth } from './security/internal-auth';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Solo el API Gateway y los demas microservicios pueden llamar a este servicio (token interno)
+  app.use(internalAuth());
 
   app.useGlobalPipes(
     new ValidationPipe({

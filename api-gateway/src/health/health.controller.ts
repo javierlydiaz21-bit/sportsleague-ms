@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { internalHeaders } from '../config/internal';
 import { SERVICES, ServiceKey, serviceUrl } from '../config/services';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -50,7 +51,7 @@ export class HealthController {
       keys.map(async (key) => {
         const started = Date.now();
         try {
-          const res = await fetch(`${serviceUrl(key)}/api/v1/health`, { signal: AbortSignal.timeout(8000) });
+          const res = await fetch(`${serviceUrl(key)}/api/v1/health`, { headers: internalHeaders(), signal: AbortSignal.timeout(8000) });
           const body = (await res.json()) as Record<string, unknown>;
           return { key, name: SERVICES[key].name, ...body, latencyMs: Date.now() - started };
         } catch {

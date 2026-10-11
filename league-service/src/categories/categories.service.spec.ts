@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 
 function build(category: any = { id: 1 }, rule: any = null) {
@@ -27,5 +27,13 @@ describe('CategoriesService', () => {
   it('responde 404 si la categoria no existe', async () => {
     const { service } = build(null);
     await expect(service.findOne(9)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rechaza un empate que vale mas que una victoria', async () => {
+    const { service, prisma } = build();
+    await expect(
+      service.updateRules(1, { pointsWin: 2, pointsDraw: 3, tiebreakerCriteria: 'diferencia_de_goles' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.rule.upsert).not.toHaveBeenCalled();
   });
 });

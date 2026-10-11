@@ -5,11 +5,15 @@ import { ResilientHttpService } from './resilient-http.service';
 const networkError = () => throwError(() => ({ message: 'connect ECONNREFUSED' }));
 
 describe('ResilientHttpService (timeouts, retries y circuit breaker)', () => {
+  beforeAll(() => (process.env.INTERNAL_TOKEN = 'token-de-prueba'));
+  afterAll(() => delete process.env.INTERNAL_TOKEN);
+
   it('devuelve los datos cuando el servicio responde', async () => {
     const http: any = { get: jest.fn(() => of({ status: 200, data: { ok: true } })) };
     const res = await new ResilientHttpService(http).get('League Service', 'http://x');
     expect(res).toEqual({ status: 200, data: { ok: true } });
-    expect(http.get.mock.calls[0][1]).toEqual({ timeout: 3000 });
+    // La llamada lleva el token interno: sin el, el otro servicio la rechaza
+    expect(http.get.mock.calls[0][1]).toEqual({ timeout: 3000, headers: { 'x-internal-token': 'token-de-prueba' } });
   });
 
   it('no reintenta ante un 404: lo devuelve al llamador', async () => {

@@ -17,6 +17,8 @@ corresponde.
 | Rate limiting (5.3) | Por cliente/IP, más estricto en escrituras | ✅ 600 lecturas y 120 escrituras por minuto, contadores en Redis |
 | Logging (5.3, 9.1) | IP, fecha, endpoint, método, usuario, código y tiempo de respuesta | ✅ una línea JSON por petición, con `match_id` cuando aplica |
 | CORS (10.7) | Solo los dominios autorizados | ✅ `CORS_ORIGINS` |
+| Acceso solo por el gateway (5.1) | Los clientes nunca llaman directamente a un microservicio | ✅ el gateway envía `x-internal-token` (`INTERNAL_TOKEN`) y cada microservicio rechaza con 401 las llamadas sin ese token; en Render los servicios tienen URL pública, así que el control está en cada servicio y no solo en el gateway |
+| Solicitudes duplicadas | (adición) | ✅ una escritura con `Idempotency-Key` se procesa una sola vez durante 10 minutos (Redis); la repetición recibe la misma respuesta |
 | Métricas (9.2) | Solicitudes por segundo, tiempos y errores | ✅ `GET /api/v1/metrics` (Prometheus) |
 | WebSocket | Marcador en vivo | ✅ reenvía `/socket.io` (namespace `/live-scores`) al Live Score Service |
 

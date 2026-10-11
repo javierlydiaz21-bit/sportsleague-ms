@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { normalizeName } from '../common/catalog';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 
@@ -20,6 +21,15 @@ export class SeasonsService {
     const [min, max] = dto.ageRange.split('-').map(Number);
     if (min > max) {
       throw new BadRequestException('En ageRange la edad minima no puede ser mayor que la maxima');
+    }
+    if (min < 3) {
+      throw new BadRequestException('En ageRange las edades deben estar entre 3 y 99 anios');
+    }
+
+    // El nombre no se repite dentro de la liga (sin distinguir mayusculas ni tildes)
+    const siblings = await this.prisma.category.findMany({ where: { leagueId: season.leagueId }, select: { name: true } });
+    if (siblings.some((c) => normalizeName(c.name) === normalizeName(dto.name))) {
+      throw new ConflictException(`Ya existe la categoria ${dto.name} en esta liga`);
     }
 
     return this.prisma.category.create({

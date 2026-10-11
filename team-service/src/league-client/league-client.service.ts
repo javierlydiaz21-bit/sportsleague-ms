@@ -2,6 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { catchError, firstValueFrom, of } from 'rxjs';
+import { internalHeaders } from '../security/internal-auth';
 
 export interface LeagueCategory {
   id: number;
@@ -36,7 +37,7 @@ export class LeagueClientService {
   async getCategory(categoryId: number): Promise<LeagueCategory | null> {
     const url = `${this.baseUrl}/api/v1/categories/${categoryId}`;
     const response = await firstValueFrom(
-      this.http.get<LeagueCategory>(url, { timeout: this.timeoutMs }).pipe(
+      this.http.get<LeagueCategory>(url, { timeout: this.timeoutMs, headers: internalHeaders() }).pipe(
         catchError((err) => {
           this.logger.warn(`League Service no respondio (${url}): ${err.message}`);
           return of(null);

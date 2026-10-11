@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { LeaguesService } from './leagues.service';
 import { userIdOf } from './leagues.controller';
 
@@ -65,6 +65,29 @@ describe('LeaguesService', () => {
     const { service, prisma } = build();
     await service.findMine(7);
     expect(prisma.league.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: 7 } }));
+  });
+
+  it('avisa (409) si el mismo organizador repite el nombre de una de sus ligas', async () => {
+    const { service, prisma } = build({ id: 1, name: 'Liga Barrial de Montería', sport: 'futbol' });
+    await expect(service.create({ name: 'liga barrial de monteria', sport: 'voley' }, 7)).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.league.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: 7 } }));
+    expect(prisma.league.create).not.toHaveBeenCalled();
+  });
+
+  it('con confirmDuplicate crea la liga aunque el nombre se repita (y no lo guarda como dato)', async () => {
+    const { service, prisma } = build({ id: 1, name: 'Liga UCC', sport: 'voley' });
+    await service.create({ name: 'Liga UCC', sport: 'voley', confirmDuplicate: true }, 7);
+    expect(prisma.league.create).toHaveBeenCalledWith({ data: { name: 'Liga UCC', sport: 'voley', ownerId: 7 } });
+  });
+
+  it('rechaza una temporada cuyo año no corresponde a sus fechas', async () => {
+    const { service } = build();
+    await expect(service.createSeason(1, { year: 2030, startDate: '2026-10-01', endDate: '2027-02-28' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(service.createSeason(1, { year: 2027, startDate: '2026-10-01', endDate: '2027-02-28' })).resolves.toMatchObject({
+      year: 2027,
+    });
   });
 
   it('solo acepta como usuario un entero positivo en x-user-id', () => {
