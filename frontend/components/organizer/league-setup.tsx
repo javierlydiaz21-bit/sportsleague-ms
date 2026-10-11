@@ -17,11 +17,22 @@ import { useEffect, useRef, useState } from "react";
 import { Check } from "@/components/icons";
 import { useLeague } from "@/components/league-context";
 import { EmptyCard, Notice } from "@/components/ui";
-import { SPORTS, STAGE_LABELS, STAGE_ORDER, TIEBREAKERS, firstOpenStage, leagueStatus, type Stage, type StageId } from "@/lib/league-setup";
+import {
+  SPORTS,
+  STAGE_LABELS,
+  STAGE_ORDER,
+  TIEBREAKERS,
+  firstOpenStage,
+  leagueStatus,
+  seasonsToRecalculate,
+  type Stage,
+  type StageId,
+} from "@/lib/league-setup";
 import { shortDate, utcDate } from "@/lib/services";
 import { useSession } from "@/lib/session";
 import { useApi, useLoad } from "@/lib/use-api";
 import type { League } from "@/lib/types";
+import { CategoryEditForm, LeagueEditForm, SeasonEditForm } from "./league-edit-forms";
 import { CategoryForm, RuleForm, SeasonForm } from "./league-forms";
 import { loadLeagueSetup, setupKey, stagesOf, type LeagueSetup } from "./league-data";
 import { PanelSection } from "./panel";
@@ -214,7 +225,9 @@ function Blocked({ text, to, go }: { text: string; to: StageId; go: (s: StageId)
 }
 
 function StageSeason({ league, setup, go, refresh }: StageProps) {
+  const [editing, setEditing] = useState<number | null>(null);
   const seasons = sortedSeasons(league);
+  const editingSeason = seasons.find((s) => s.id === editing);
   const nextYear = seasons.length ? Math.max(...seasons.map((s) => s.year)) + 1 : new Date().getFullYear();
   return (
     <>
@@ -228,6 +241,7 @@ function StageSeason({ league, setup, go, refresh }: StageProps) {
                 <th>Inicio</th>
                 <th>Finalización</th>
                 <th>Calendario</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -239,12 +253,26 @@ function StageSeason({ league, setup, go, refresh }: StageProps) {
                     <td>{shortDate(s.startDate)}</td>
                     <td>{shortDate(s.endDate)}</td>
                     <td>{n ? `${n} partidos` : "Sin calendario"}</td>
+                    <td>
+                      <button className="linkish" type="button" onClick={() => setEditing(s.id)}>
+                        Corregir
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+      )}
+      {editingSeason && (
+        <SeasonEditForm
+          key={editingSeason.id}
+          season={editingSeason}
+          matches={setup.matches[editingSeason.id] ?? []}
+          onSaved={refresh}
+          onCancel={() => setEditing(null)}
+        />
       )}
       <SeasonForm
         league={league}
@@ -259,9 +287,11 @@ function StageSeason({ league, setup, go, refresh }: StageProps) {
 }
 
 function StageCategories({ league, setup, go, refresh }: StageProps) {
+  const [editing, setEditing] = useState<number | null>(null);
   const seasons = sortedSeasons(league);
   if (!seasons.length) return <Blocked text="Las categorías se crean dentro de una temporada. Primero define la temporada." to="temporada" go={go} />;
   const cats = league.categories;
+  const editingCategory = cats.find((c) => c.id === editing);
   return (
     <>
       <p className="hint">Cada categoría tiene su rango de edad: con él se valida a cada jugador cuando se ficha.</p>
@@ -274,6 +304,7 @@ function StageCategories({ league, setup, go, refresh }: StageProps) {
                 <th>Rango de edad</th>
                 <th>Reglamento</th>
                 <th className="num">Equipos</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -285,11 +316,19 @@ function StageCategories({ league, setup, go, refresh }: StageProps) {
                   <td>{c.ageRange.replace("-", " a ")} años</td>
                   <td>{c.rule ? "Definido" : <span className="elig elig-pendiente">Pendiente</span>}</td>
                   <td className="num">{setup.data.teamsPerCategory[c.id] ?? 0}</td>
+                  <td>
+                    <button className="linkish" type="button" onClick={() => setEditing(c.id)}>
+                      Corregir
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {editingCategory && (
+        <CategoryEditForm key={editingCategory.id} category={editingCategory} league={league} onSaved={refresh} onCancel={() => setEditing(null)} />
       )}
       <CategoryForm
         league={league}
@@ -303,7 +342,7 @@ function StageCategories({ league, setup, go, refresh }: StageProps) {
   );
 }
 
-function StageRules({ league, go, refresh }: StageProps) {
+function StageRules({ league, setup, go, refresh }: StageProps) {
   const cats = league.categories;
   const [selected, setSelected] = useState<number | null>(null);
   if (!cats.length) return <Blocked text="El reglamento se define para cada categoría. Primero crea una categoría." to="categorias" go={go} />;
@@ -333,6 +372,7 @@ function StageRules({ league, go, refresh }: StageProps) {
       <RuleForm
         key={current.id}
         category={current}
+        recalcSeasons={seasonsToRecalculate(current.id, setup.teams, setup.matches)}
         onSaved={(next) => {
           refresh();
           const missing = cats.filter((c) => !c.rule && c.id !== current.id);
@@ -461,7 +501,7 @@ function StageCalendar({ league, setup, stages }: StageProps) {
   );
 }
 
-function StageReview({ league, setup, stages, go }: StageProps) {
+function StageReview({ league, setup, stages, go, refresh }: StageProps) {
   const status = leagueStatus(stages);
   const seasons = sortedSeasons(league);
   const cats = league.categories;
@@ -513,11 +553,12 @@ function StageReview({ league, setup, stages, go }: StageProps) {
           </div>
         </div>
       )}
+      <LeagueEditForm league={league} calendarSeason={seasons.find((s) => (setup.matches[s.id]?.length ?? 0) > 0)?.year} onSaved={refresh} />
       <div className="setup-block">
         <h3>Guardado y publicación</h3>
         <p className="hint">
-          Todo lo que ves aquí ya está guardado. Publicar la liga en el sitio público como una acción aparte llegará en una fase posterior; mientras tanto, el
-          sitio público puede mostrar la información de todas las ligas, también la de esta.
+          Todo lo que ves aquí ya está guardado. La temporada y las categorías se corrigen en sus etapas. Publicar la liga en el sitio público como una acción
+          aparte llegará en una fase posterior; mientras tanto, el sitio público puede mostrar la información de todas las ligas, también la de esta.
         </p>
       </div>
     </>

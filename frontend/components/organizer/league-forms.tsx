@@ -177,7 +177,12 @@ export function CategoryForm({
   );
 }
 
-export function RuleForm({ category, onSaved }: { category: Category; onSaved: (next: boolean) => void }) {
+/**
+ * Reglamento de una categoría. Si ya hay partidos jugados (recalcSeasons), avisa antes de
+ * guardar y después pide al Statistics Service que recalcule esas tablas con los puntos nuevos.
+ *   Statistics Service .. POST /standings/{seasonId}/recalculate
+ */
+export function RuleForm({ category, recalcSeasons = [], onSaved }: { category: Category; recalcSeasons?: number[]; onSaved: (next: boolean) => void }) {
   const [msg, setMsg] = useState<Msg>(null);
   const { busy, run } = useSubmitLock();
   const r = category.rule;
@@ -195,17 +200,30 @@ export function RuleForm({ category, onSaved }: { category: Category; onSaved: (
       try {
         // League Service: PUT /categories/{id}/rules
         await api("PUT", `/categories/${category.id}/rules`, { pointsWin: pw, pointsDraw: pd, tiebreakerCriteria: tb });
-        setMsg({ tone: "ok", text: `Reglamento de ${category.name} guardado.` });
-        onSaved(next);
       } catch (err) {
         setMsg({ tone: "error", text: (err as Error).message });
+        return;
       }
+      try {
+        // Statistics Service: la tabla de las temporadas con partidos jugados usa el reglamento nuevo
+        for (const seasonId of recalcSeasons) await api("POST", `/standings/${seasonId}/recalculate`);
+        setMsg({ tone: "ok", text: `Reglamento de ${category.name} guardado.${recalcSeasons.length ? " La tabla de posiciones ya usa estos puntos." : ""}` });
+      } catch (err) {
+        setMsg({
+          tone: "error",
+          text: `Reglamento de ${category.name} guardado, pero no se pudo recalcular la tabla: ${(err as Error).message} Vuelve a guardar para intentarlo de nuevo.`,
+        });
+      }
+      onSaved(next);
     });
   }
 
   return (
     <form className="f" noValidate onSubmit={submit}>
       <h3>Reglamento de {category.name}</h3>
+      {recalcSeasons.length > 0 && (
+        <p className="needs">Esta categoría ya tiene partidos jugados: al guardar, la tabla de posiciones se recalcula con el reglamento nuevo.</p>
+      )}
       <div className="fgrid">
         <label className="fl">
           Puntos por victoria

@@ -4,7 +4,9 @@ import { describe, it } from "node:test";
 import {
   firstOpenStage,
   leagueStatus,
+  matchesOutside,
   normalizeName,
+  seasonsToRecalculate,
   setupStages,
   similarLeague,
   validateCategory,
@@ -113,5 +115,34 @@ describe("validaciones de los formularios", () => {
     assert.match(validateRule(2, 3, "diferencia_de_goles") ?? "", /empate/);
     assert.equal(validateRule(3, 1, "sorteo"), "Elige un criterio de desempate.");
     assert.equal(validateRule(2, 1, "partidos_ganados"), null);
+  });
+});
+
+describe("avisos de edición", () => {
+  const calendar = [
+    { scheduledAt: "2026-10-17T20:00:00.000Z" },
+    { scheduledAt: "2026-11-07T20:00:00.000Z" },
+  ];
+
+  it("detecta partidos que quedarían fuera de las fechas nuevas (el último día cuenta)", () => {
+    assert.equal(matchesOutside(calendar, "2026-10-17", "2026-11-07").length, 0);
+    assert.equal(matchesOutside(calendar, "2026-10-18", "2026-12-01").length, 1);
+    assert.equal(matchesOutside(calendar, "2026-11-08", "2026-12-01").length, 2);
+  });
+
+  it("recalcula solo las temporadas con partidos finalizados de esa categoría", () => {
+    const teams = [
+      { id: 1, categoryId: 10 },
+      { id: 2, categoryId: 10 },
+      { id: 3, categoryId: 20 },
+    ];
+    const matches = {
+      5: [{ homeTeam: 1, status: "finalizado" }],
+      6: [{ homeTeam: 1, status: "programado" }],
+      7: [{ homeTeam: 3, status: "finalizado" }],
+    };
+    assert.deepEqual(seasonsToRecalculate(10, teams, matches), [5]);
+    assert.deepEqual(seasonsToRecalculate(20, teams, matches), [7]);
+    assert.deepEqual(seasonsToRecalculate(30, teams, matches), []);
   });
 });

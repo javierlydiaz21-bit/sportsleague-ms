@@ -177,3 +177,28 @@ export function validateRule(pointsWin: number, pointsDraw: number, tiebreaker: 
   if (!TIEBREAKERS[tiebreaker]) return "Elige un criterio de desempate.";
   return null;
 }
+
+// Edición: avisos antes de cambiar algo que afecta partidos o tablas
+
+/** Partidos que quedarían fuera de una temporada con estas fechas (AAAA-MM-DD). */
+export function matchesOutside<T extends { scheduledAt: string }>(matches: T[], start: string, end: string): T[] {
+  return matches.filter((m) => {
+    const day = m.scheduledAt.slice(0, 10);
+    return day < start || day > end;
+  });
+}
+
+/**
+ * Temporadas cuya tabla cambia si se corrige el reglamento de una categoría: las que tienen
+ * partidos finalizados entre equipos de esa categoría (hay que recalcular sus posiciones).
+ */
+export function seasonsToRecalculate(
+  categoryId: number,
+  teams: { id: number; categoryId: number }[],
+  matchesBySeason: Record<number, { homeTeam: number; status: string }[]>,
+): number[] {
+  const ids = new Set(teams.filter((t) => t.categoryId === categoryId).map((t) => t.id));
+  return Object.entries(matchesBySeason)
+    .filter(([, ms]) => ms.some((m) => m.status === "finalizado" && ids.has(m.homeTeam)))
+    .map(([id]) => Number(id));
+}
