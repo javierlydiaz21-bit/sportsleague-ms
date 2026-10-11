@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { EligibilityStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LeagueClientService } from '../league-client/league-client.service';
@@ -11,6 +11,20 @@ export function calculateAge(birthDate: Date, at: Date = new Date()): number {
   const m = at.getMonth() - birthDate.getMonth();
   if (m < 0 || (m === 0 && at.getDate() < birthDate.getDate())) age--;
   return age;
+}
+
+/** Elegibilidad de un jugador para un rango de edad "min-max". */
+export function eligibilityFor(birthDate: Date, ageRange: string, at: Date = new Date()): EligibilityStatus {
+  const [min, max] = ageRange.split('-').map(Number);
+  const age = calculateAge(birthDate, at);
+  return age >= min && age <= max ? EligibilityStatus.elegible : EligibilityStatus.no_elegible;
+}
+
+/** Rango "min-max" con formato valido y minimo <= maximo. */
+export function isAgeRange(value: string): boolean {
+  if (!/^\d{1,2}-\d{1,2}$/.test(value)) return false;
+  const [min, max] = value.split('-').map(Number);
+  return min <= max;
 }
 
 @Injectable()
@@ -53,11 +67,66 @@ export class TeamsService {
     if (!category) {
       return { status: EligibilityStatus.pendiente, ageRange: null as string | null };
     }
-    const [min, max] = category.ageRange.split('-').map(Number);
-    const age = calculateAge(birthDate);
-    const status =
-      age >= min && age <= max ? EligibilityStatus.elegible : EligibilityStatus.no_elegible;
-    return { status, ageRange: category.ageRange };
+    return { status: eligibilityFor(birthDate, category.ageRange), ageRange: category.ageRange };
+  }
+
+  /** Jugadores de los equipos de una categoria, con su equipo. */
+  private async playersOf(categoryId: number) {
+    const teams = await this.prisma.team.findMany({ where: { categoryId }, include: { players: true }, orderBy: { id: 'asc' } });
+    return teams.flatMap((t) => t.players.map((p) => ({ ...p, team: { id: t.id, name: t.name } })));
+  }
+
+  /**
+   * GET /categories/{id}/eligibility-preview?ageRange= — que jugadores cambiarian de
+   * elegibilidad si la categoria tuviera otro rango de edad. No cambia nada: la web lo
+   * muestra como advertencia antes de guardar el rango nuevo en el League Service.
+   */
+  async eligibilityPreview(categoryId: number, ageRange: string) {
+    if (!isAgeRange(ageRange)) {
+      throw new BadRequestException('ageRange debe tener el formato "min-max", con el minimo menor o igual al maximo');
+    }
+    const players = await this.playersOf(categoryId);
+    const changes = players
+      .map((p) => ({
+        playerId: p.id,
+        name: p.name,
+        jerseyNumber: p.jerseyNumber,
+        birthDate: p.birthDate,
+        team: p.team,
+        from: p.eligibilityStatus,
+        to: eligibilityFor(p.birthDate, ageRange),
+      }))
+      .filter((c) => c.from !== c.to);
+    return {
+      categoryId,
+      ageRange,
+      players: players.length,
+      becomeIneligible: changes.filter((c) => c.to === EligibilityStatus.no_elegible).length,
+      becomeEligible: changes.filter((c) => c.to === EligibilityStatus.elegible).length,
+      changes,
+    };
+  }
+
+  /**
+   * POST /categories/{id}/eligibility/recalculate — recalcula la elegibilidad de todos los
+   * jugadores de la categoria con el rango vigente en el League Service (despues de corregirlo).
+   * Si el League Service no responde no cambia nada (503).
+   */
+  async recalculateCategory(categoryId: number) {
+    const category = await this.leagueClient.getCategory(categoryId);
+    if (!category) {
+      throw new ServiceUnavailableException('No se pudo leer la categoria en el League Service; intente de nuevo en unos segundos');
+    }
+    const players = await this.playersOf(categoryId);
+    const updates = players
+      .map((p) => ({ id: p.id, status: eligibilityFor(p.birthDate, category.ageRange), before: p.eligibilityStatus }))
+      .filter((u) => u.status !== u.before);
+    if (updates.length) {
+      await this.prisma.$transaction(
+        updates.map((u) => this.prisma.player.update({ where: { id: u.id }, data: { eligibilityStatus: u.status } })),
+      );
+    }
+    return { categoryId, ageRange: category.ageRange, players: players.length, updated: updates.length };
   }
 
   /** Ficha un jugador validando automaticamente su elegibilidad. */

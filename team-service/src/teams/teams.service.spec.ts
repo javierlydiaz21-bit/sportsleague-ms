@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { TeamsService, calculateAge } from './teams.service';
 
 describe('calculateAge', () => {
@@ -100,5 +100,56 @@ describe('TeamsService.findMany', () => {
     const { service } = build(sub17);
     const p = await service.addPlayer(1, { name: 'Juan Perez', birthDate: yearsAgo(16), jerseyNumber: 9 });
     expect(p.name).toBe('Juan Perez');
+  });
+});
+
+describe('Elegibilidad por categoria (corregir el rango de edad)', () => {
+  // Jugadores de 15, 16, 17 y 18 anios en una categoria Sub-17 (15-17)
+  const players = (ages: number[]) =>
+    ages.map((age, i) => ({
+      id: i + 1,
+      name: `Jugador ${i + 1}`,
+      jerseyNumber: i + 1,
+      birthDate: new Date(yearsAgo(age)),
+      eligibilityStatus: age >= 15 && age <= 17 ? 'elegible' : 'no_elegible',
+    }));
+  function withTeams(category: any, list: any[]) {
+    const built = build(category);
+    built.prisma.team.findMany.mockResolvedValue([{ id: 1, name: 'Halcones FC', categoryId: 1, players: list }]);
+    built.prisma.$transaction = jest.fn(async (ops: any[]) => Promise.all(ops));
+    return built;
+  }
+
+  it('la vista previa lista quienes cambiarian de elegibilidad, sin modificar nada', async () => {
+    const { service, prisma } = withTeams(sub17, players([15, 16, 17, 18]));
+    const r = await service.eligibilityPreview(1, '16-18');
+    expect(r.players).toBe(4);
+    expect(r.becomeIneligible).toBe(1);
+    expect(r.becomeEligible).toBe(1);
+    expect(r.changes.map((c) => [c.playerId, c.to])).toEqual([
+      [1, 'no_elegible'],
+      [4, 'elegible'],
+    ]);
+    expect(r.changes[0].team).toEqual({ id: 1, name: 'Halcones FC' });
+    expect(prisma.player.update).not.toHaveBeenCalled();
+  });
+
+  it('la vista previa rechaza un rango invalido (400)', async () => {
+    const { service } = withTeams(sub17, []);
+    await expect(service.eligibilityPreview(1, '18-15')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.eligibilityPreview(1, '15 a 18')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('recalcula con el rango vigente del League Service y solo actualiza a quienes cambian', async () => {
+    const { service, prisma } = withTeams({ ...sub17, ageRange: '16-18' }, players([15, 16, 17, 18]));
+    const r = await service.recalculateCategory(1);
+    expect(r).toEqual({ categoryId: 1, ageRange: '16-18', players: 4, updated: 2 });
+    expect(prisma.player.update).toHaveBeenCalledTimes(2);
+  });
+
+  it('si el League Service no responde no cambia nada (503)', async () => {
+    const { service, prisma } = withTeams(null, players([15]));
+    await expect(service.recalculateCategory(1)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(prisma.player.update).not.toHaveBeenCalled();
   });
 });

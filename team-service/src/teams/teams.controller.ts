@@ -70,6 +70,35 @@ export class TeamsController {
 }
 
 @ApiTags('players')
+@Controller('categories')
+export class CategoryEligibilityController {
+  constructor(private readonly teamsService: TeamsService) {}
+
+  // GET /api/v1/categories/{id}/eligibility-preview?ageRange=15-18 — impacto de otro rango de edad
+  @Get(':id/eligibility-preview')
+  @ApiOperation({
+    summary: 'Ver que jugadores cambiarian de elegibilidad con otro rango de edad',
+    description: 'No cambia nada. La web lo muestra como advertencia antes de corregir el rango en el League Service.',
+  })
+  @ApiParam({ name: 'id', example: 1, description: 'Id de la categoria (League Service)' })
+  @ApiQuery({ name: 'ageRange', example: '15-18' })
+  eligibilityPreview(@Param('id', ParseIntPipe) id: number, @Query('ageRange') ageRange = '') {
+    return this.teamsService.eligibilityPreview(id, ageRange);
+  }
+
+  // POST /api/v1/categories/{id}/eligibility/recalculate — despues de corregir el rango
+  @Post(':id/eligibility/recalculate')
+  @ApiOperation({
+    summary: 'Recalcular la elegibilidad de todos los jugadores de una categoria',
+    description: 'Usa el rango de edad vigente en el League Service (consulta SINCRONA). Si no responde, no cambia nada (503).',
+  })
+  @ApiParam({ name: 'id', example: 1 })
+  recalculate(@Param('id', ParseIntPipe) id: number) {
+    return this.teamsService.recalculateCategory(id);
+  }
+}
+
+@ApiTags('players')
 @Controller('players')
 export class PlayersController {
   constructor(private readonly teamsService: TeamsService) {}

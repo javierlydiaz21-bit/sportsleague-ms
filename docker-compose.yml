@@ -213,6 +213,8 @@ services:
       # Token interno entre servicios (solo desarrollo local; en Render es una variable secreta)
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-token-interno-solo-para-desarrollo-local}
       DATABASE_URL: postgresql://league_user:league_pass@league-db:5432/league_db?schema=public
+      # Para validar ediciones: si una temporada ya tiene calendario
+      FIXTURE_SERVICE_URL: http://fixture-service:3001
     ports:
       - 3003:3003
     depends_on:

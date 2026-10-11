@@ -29,6 +29,8 @@ guarda el nombre. Es opcional al fichar.
 | POST | `/api/v1/teams/{id}/players` | Ficha un jugador y valida su elegibilidad |
 | GET  | `/api/v1/teams/{id}/players` | Consulta la plantilla del equipo |
 | PUT  | `/api/v1/players/{id}/eligibility` | Vuelve a verificar la elegibilidad del jugador |
+| GET  | `/api/v1/categories/{id}/eligibility-preview?ageRange=` | (adición) Qué jugadores cambiarían de elegibilidad con otro rango de edad; no cambia nada |
+| POST | `/api/v1/categories/{id}/eligibility/recalculate` | (adición) Recalcula la elegibilidad de toda la categoría con el rango vigente del League Service; si no responde, no cambia nada (503) |
 
 Lectura de apoyo para la web: `GET /api/v1/teams?categoryId=1` o `?ids=1,2,3`
 (equipos con su plantilla).

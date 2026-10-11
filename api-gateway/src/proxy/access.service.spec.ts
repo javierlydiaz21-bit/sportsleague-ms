@@ -59,6 +59,22 @@ describe('AccessService.authorize (permisos diferenciados, 10.2)', () => {
     );
   });
 
+  it('las correcciones van al servicio dueno de cada dato y solo para organizadores', async () => {
+    for (const path of ['/leagues/3', '/seasons/4', '/categories/5']) {
+      const r = route('PATCH', path);
+      expect(r.route.service).toBe('league');
+      await expect(build().authorize(r, user('espectador'), {})).rejects.toBeInstanceOf(ForbiddenException);
+    }
+    expect(route('GET', '/categories/5/eligibility-preview').route.service).toBe('team');
+    expect(route('POST', '/categories/5/eligibility/recalculate').route.service).toBe('team');
+    await expect(build().authorize(route('GET', '/categories/5/eligibility-preview'), null, {})).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    // La lectura publica de la categoria sigue en el League Service
+    expect(route('GET', '/categories/5').route.service).toBe('league');
+    expect(matchRoute('PATCH', '/teams/1')).toBeNull();
+  });
+
   it('"Mis ligas" va al League Service y exige sesion de organizador', async () => {
     const mine = route('GET', '/leagues/mine');
     expect(mine.route.service).toBe('league');

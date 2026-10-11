@@ -1,14 +1,12 @@
-import { Body, Controller, Get, Headers, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { userIdOf } from '../common/ownership';
 import { LeaguesService } from './leagues.service';
 import { CreateLeagueDto } from './dto/create-league.dto';
 import { CreateSeasonDto } from './dto/create-season.dto';
+import { UpdateLeagueDto } from './dto/update-league.dto';
 
-/** Usuario autenticado que reenvia el API Gateway (x-user-id); null si no viene o no es valido. */
-export function userIdOf(header?: string): number | null {
-  const id = Number(header);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
+export { userIdOf };
 
 @ApiTags('leagues')
 @Controller('leagues')
@@ -47,6 +45,17 @@ export class LeaguesController {
   @ApiResponse({ status: 404, description: 'La liga no existe.' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.leaguesService.findOne(id);
+  }
+
+  // PATCH /api/v1/leagues/{id} — corregir nombre o deporte (solo el organizador que la creo)
+  @Patch(':id')
+  @ApiOperation({ summary: 'Corregir el nombre o el deporte de una liga' })
+  @ApiParam({ name: 'id', example: 1 })
+  @ApiResponse({ status: 403, description: 'La liga es de otro organizador.' })
+  @ApiResponse({ status: 409, description: 'Nombre repetido del mismo organizador, o deporte con calendario ya generado.' })
+  @ApiResponse({ status: 503, description: 'No se pudo consultar el calendario en el Fixture Service.' })
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateLeagueDto, @Headers('x-user-id') userId?: string) {
+    return this.leaguesService.update(id, dto, userIdOf(userId));
   }
 
   // POST /api/v1/leagues/{id}/seasons

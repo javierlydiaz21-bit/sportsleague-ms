@@ -38,6 +38,17 @@ Además, como en todos los servicios: `GET /api/v1/health` y
 
 - `GET /api/v1/leagues/mine`: "Mis ligas", las ligas del organizador que envía el
   API Gateway en `x-user-id`.
+- Corrección de datos (adición; nada se borra), solo por el organizador que creó la liga
+  (403 para otro organizador):
+  - `PATCH /api/v1/leagues/{id}`: nombre y deporte. El deporte solo cambia mientras
+    ninguna temporada tenga calendario.
+  - `PATCH /api/v1/seasons/{id}`: año y fechas. Si la temporada tiene calendario, las
+    fechas nuevas deben cubrir todos sus partidos (409 si no).
+  - `PATCH /api/v1/categories/{id}`: nombre y rango de edad. La respuesta trae
+    `ageRangeChanged` para que la web pida al Team Service recalcular la elegibilidad.
+  - Para validar el deporte y las fechas consulta de forma síncrona al Fixture Service
+    (`FIXTURE_SERVICE_URL`, `GET /api/v1/fixtures/{seasonId}`); si no responde, rechaza
+    el cambio (503) en vez de validarlo a ciegas.
 
 - `GET /api/v1/categories/{id}`: la consulta REST puntual con la que el Team
   Service lee el `age_range` (el documento dice en 3.2 que `age_range` es

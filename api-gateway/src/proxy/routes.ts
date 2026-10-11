@@ -23,7 +23,7 @@ export type Access =
   | 'own-user-body';
 
 export interface Route {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** Ruta relativa a /api/v1. El primer grupo capturado es el id que usa la politica. */
   pattern: RegExp;
   service: ServiceKey;
@@ -40,8 +40,13 @@ export const ROUTES: Route[] = [
   { method: 'POST', pattern: /^\/seasons\/\d+\/categories$/, service: 'league', access: 'organizador' },
   { method: 'GET', pattern: /^\/categories\/\d+(?:\/rules)?$/, service: 'league', access: 'public' },
   { method: 'PUT', pattern: /^\/categories\/\d+\/rules$/, service: 'league', access: 'organizador' },
+  // Correccion de liga, temporada y categoria (el League Service valida el propietario y el calendario)
+  { method: 'PATCH', pattern: /^\/(?:leagues|seasons|categories)\/\d+$/, service: 'league', access: 'organizador' },
 
   // Team Service (2.1)
+  // Elegibilidad de una categoria al corregir su rango de edad: vista previa y recalculo
+  { method: 'GET', pattern: /^\/categories\/\d+\/eligibility-preview$/, service: 'team', access: 'organizador' },
+  { method: 'POST', pattern: /^\/categories\/\d+\/eligibility\/recalculate$/, service: 'team', access: 'organizador' },
   { method: 'GET', pattern: /^\/teams(?:\/\d+(?:\/players)?)?$/, service: 'team', access: 'public' },
   { method: 'POST', pattern: /^\/teams(?:\/\d+\/players)?$/, service: 'team', access: 'organizador' },
   { method: 'PUT', pattern: /^\/players\/\d+\/eligibility$/, service: 'team', access: 'organizador' },

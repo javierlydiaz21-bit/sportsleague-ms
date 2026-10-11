@@ -1,18 +1,23 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { LeaguesService } from './leagues.service';
 import { userIdOf } from './leagues.controller';
 
-function build(league: any = { id: 1, name: 'Liga', sport: 'futbol' }) {
+function build(league: any = { id: 1, name: 'Liga', sport: 'futbol' }, calendar: any[] = []) {
   const prisma: any = {
     league: {
       create: jest.fn(({ data }) => ({ id: 1, ...data })),
       findUnique: jest.fn().mockResolvedValue(league),
       findMany: jest.fn().mockResolvedValue(league ? [league] : []),
+      update: jest.fn(({ data }) => ({ ...league, ...data })),
     },
     season: { create: jest.fn(({ data }) => ({ id: 1, ...data })) },
   };
-  return { service: new LeaguesService(prisma), prisma };
+  const fixtures: any = { matchesOf: jest.fn().mockResolvedValue(calendar) };
+  return { service: new LeaguesService(prisma, fixtures), prisma, fixtures };
 }
+
+// Liga del organizador 7 con una temporada
+const mine = (extra: any = {}) => ({ id: 1, name: 'Liga Barrial', sport: 'futbol', ownerId: 7, seasons: [{ id: 3, year: 2026 }], ...extra });
 
 describe('LeaguesService', () => {
   it('crea una temporada dentro de la liga', async () => {
@@ -87,6 +92,62 @@ describe('LeaguesService', () => {
     );
     await expect(service.createSeason(1, { year: 2027, startDate: '2026-10-01', endDate: '2027-02-28' })).resolves.toMatchObject({
       year: 2027,
+    });
+  });
+
+  describe('PATCH /leagues/{id} (corregir la liga)', () => {
+    it('solo el organizador que la creo puede editarla (403)', async () => {
+      const { service, prisma } = build(mine());
+      await expect(service.update(1, { name: 'Otra' }, 8)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.league.update).not.toHaveBeenCalled();
+    });
+
+    it('cambia el nombre si no repite otra liga del organizador', async () => {
+      const { service, prisma } = build(mine());
+      prisma.league.findMany.mockResolvedValue([{ id: 1, name: 'Liga Barrial' }, { id: 2, name: 'Liga UCC' }]);
+      await service.update(1, { name: 'Liga Barrial del Sinú' }, 7);
+      expect(prisma.league.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { name: 'Liga Barrial del Sinú' } });
+    });
+
+    it('avisa (409) si el nombre nuevo repite otra liga del organizador, salvo confirmDuplicate', async () => {
+      const { service, prisma } = build(mine());
+      prisma.league.findMany.mockResolvedValue([{ id: 1, name: 'Liga Barrial' }, { id: 2, name: 'Liga UCC' }]);
+      await expect(service.update(1, { name: 'liga ucc' }, 7)).rejects.toBeInstanceOf(ConflictException);
+      await service.update(1, { name: 'Liga UCC', confirmDuplicate: true }, 7);
+      expect(prisma.league.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { name: 'Liga UCC' } });
+    });
+
+    it('corregir mayusculas o tildes del mismo nombre no cuenta como repetido', async () => {
+      const { service, prisma } = build(mine());
+      await service.update(1, { name: 'LIGA BARRIAL' }, 7);
+      expect(prisma.league.findMany).not.toHaveBeenCalled();
+      expect(prisma.league.update).toHaveBeenCalled();
+    });
+
+    it('no cambia el deporte si una temporada ya tiene calendario (409)', async () => {
+      const { service, prisma, fixtures } = build(mine(), [{ id: 50, scheduledAt: '2026-10-17T20:00:00.000Z' }]);
+      await expect(service.update(1, { sport: 'voley' }, 7)).rejects.toBeInstanceOf(ConflictException);
+      expect(fixtures.matchesOf).toHaveBeenCalledWith(3);
+      expect(prisma.league.update).not.toHaveBeenCalled();
+    });
+
+    it('cambia el deporte mientras no haya calendario', async () => {
+      const { service, prisma } = build(mine(), []);
+      await service.update(1, { sport: 'voley' }, 7);
+      expect(prisma.league.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { sport: 'voley' } });
+    });
+
+    it('si el Fixture Service no responde, no cambia el deporte a ciegas (503)', async () => {
+      const { service, prisma, fixtures } = build(mine());
+      fixtures.matchesOf.mockRejectedValue(new ServiceUnavailableException('sin Fixture'));
+      await expect(service.update(1, { sport: 'basquet' }, 7)).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(prisma.league.update).not.toHaveBeenCalled();
+    });
+
+    it('sin cambios no escribe nada', async () => {
+      const { service, prisma } = build(mine());
+      await service.update(1, { name: 'Liga Barrial', sport: 'futbol' }, 7);
+      expect(prisma.league.update).not.toHaveBeenCalled();
     });
   });
 
