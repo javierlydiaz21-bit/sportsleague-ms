@@ -16,10 +16,10 @@ export const SECTIONS: Section[] = [
   {
     id: "ligas",
     href: "/ligas",
-    label: "Ligas y reglamento",
+    label: "Mis ligas",
     short: "Ligas",
-    desc: "Temporadas, categorías y cómo se cuentan los puntos.",
-    intro: "Define las ligas, sus temporadas, las categorías y cómo se cuentan los puntos.",
+    desc: "Crea tus ligas y configúralas paso a paso.",
+    intro: "Crea tus ligas y configúralas paso a paso: temporada, categorías, reglamento, equipos y calendario.",
     service: "League Service",
   },
   {

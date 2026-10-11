@@ -6,10 +6,11 @@ import { useApi } from "@/lib/use-api";
 import type { League } from "@/lib/types";
 
 /**
- * Liga activa del panel. El diseño trabaja con la liga de la cuenta; en el backend un
- * organizador administra todas, así que el panel muestra una a la vez (por defecto la
- * más reciente) y se cambia desde el menú de la cuenta.
- * League Service: GET /leagues (con sus temporadas, categorías y reglamento).
+ * Liga activa del panel, elegida entre "Mis ligas": solo las ligas que creó el organizador
+ * de la sesión. Las ligas sin propietario (anteriores a este cambio) no aparecen ni se eligen
+ * solas, pero no se ocultan ni se modifican: el sitio público las sigue mostrando.
+ * Por defecto es la más reciente; se cambia desde Mis ligas o el menú de la cuenta.
+ * League Service: GET /leagues/mine (con sus temporadas, categorías y reglamento).
  */
 interface LeagueState {
   leagues: League[] | null;
@@ -33,7 +34,7 @@ function stored(): number | null {
 
 export function LeagueProvider({ children }: { children: React.ReactNode }) {
   const { user } = useSession();
-  const leagues = useApi<League[]>(user?.role === "organizador" ? "/leagues" : null);
+  const leagues = useApi<League[]>(user?.role === "organizador" ? "/leagues/mine" : null);
   const [chosen, setChosen] = useState<number | null>(stored);
   const list = leagues.data;
   const league = list?.find((l) => l.id === chosen) ?? list?.reduce<League | null>((a, l) => (!a || l.id > a.id ? l : a), null) ?? null;

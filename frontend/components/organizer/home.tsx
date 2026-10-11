@@ -26,6 +26,7 @@ import { TIEBREAKER_LABEL, cap, longDate, shortDate, utcDate } from "@/lib/servi
 import { api, useSession } from "@/lib/session";
 import { useLoad } from "@/lib/use-api";
 import type { League, Match, NotificationFeed, Referee, Season, Standings, Team } from "@/lib/types";
+import { NoLeagues } from "./panel";
 import { today } from "./shared";
 
 const STEPS: SectionId[] = ["ligas", "equipos", "arbitros", "calendario"];
@@ -122,7 +123,10 @@ export default function PanelHome() {
   const setup = Boolean(o || (leagues && !league)) && done < STEPS.length;
 
   const kitStat = (id: SectionId) => {
-    if (id === "ligas") return `${plural(seasons.length, "temporada", "temporadas")}, ${plural(categories.length, "categoría", "categorías")}`;
+    if (id === "ligas") {
+      if (!league) return leagues ? "Aún no tienes ligas" : "";
+      return `${plural(leagues?.length ?? 1, "liga", "ligas")}; activa: ${league.name}`;
+    }
     if (id === "publico") return "Abrir el sitio de la liga";
     if (!o) return "";
     const live = o.matches.filter((m) => m.status === "en_curso").length;
@@ -168,6 +172,7 @@ export default function PanelHome() {
       <main className="page">
         <div className="wrap stack">
           {error && <Notice tone="error">{error}</Notice>}
+          {leagues && !league && <NoLeagues />}
           <section>
             <div className="squad-title">
               <h2>Secciones</h2>

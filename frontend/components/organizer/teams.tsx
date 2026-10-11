@@ -131,7 +131,7 @@ function Teams() {
   );
 }
 
-function NewTeam({ category, teams, onDone }: { category: Category; teams: Team[]; onDone: (t: Team) => void }) {
+export function NewTeam({ category, teams, onDone }: { category: Category; teams: Team[]; onDone: (t: Team) => void }) {
   const [msg, setMsg] = useState<Msg>(null);
   const [busy, setBusy] = useState(false);
 

@@ -37,6 +37,8 @@ export interface League {
   id: number;
   name: string;
   sport: string;
+  /** Usuario que la creó; las ligas anteriores al propietario no lo tienen. */
+  ownerId?: number | null;
   seasons: Season[];
   categories: Category[];
 }
