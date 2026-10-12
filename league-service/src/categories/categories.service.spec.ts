@@ -1,6 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 
+// Quien hace la peticion: un organizador cualquiera o el administrador de la plataforma
+const as = (id: number) => ({ id, admin: false });
+const ADMIN = { id: 1, admin: true };
+
+
 // Categoria Sub-17 de una liga sin propietario (anterior a la columna owner_id)
 const sub17 = { id: 1, leagueId: 4, name: 'Sub-17', ageRange: '15-17', league: { id: 4, ownerId: null } };
 
@@ -22,7 +27,7 @@ function build(category: any = sub17, rule: any = null, siblings: any[] = []) {
 describe('CategoriesService', () => {
   it('PUT rules crea o reemplaza el unico reglamento de la categoria', async () => {
     const { service, prisma } = build();
-    await service.updateRules(1, { pointsWin: 3, pointsDraw: 1, tiebreakerCriteria: 'diferencia_de_goles' });
+    await service.updateRules(1, { pointsWin: 3, pointsDraw: 1, tiebreakerCriteria: 'diferencia_de_goles' }, ADMIN);
     expect(prisma.rule.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { categoryId: 1 } }));
   });
 
@@ -39,7 +44,7 @@ describe('CategoriesService', () => {
   it('rechaza un empate que vale mas que una victoria', async () => {
     const { service, prisma } = build();
     await expect(
-      service.updateRules(1, { pointsWin: 2, pointsDraw: 3, tiebreakerCriteria: 'diferencia_de_goles' }),
+      service.updateRules(1, { pointsWin: 2, pointsDraw: 3, tiebreakerCriteria: 'diferencia_de_goles' }, ADMIN),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.rule.upsert).not.toHaveBeenCalled();
   });
@@ -47,8 +52,8 @@ describe('CategoriesService', () => {
   it('el reglamento de una liga con propietario solo lo cambia ese organizador (403)', async () => {
     const { service, prisma } = build({ ...sub17, league: { id: 4, ownerId: 7 } });
     const rule = { pointsWin: 3, pointsDraw: 1, tiebreakerCriteria: 'goles_a_favor' };
-    await expect(service.updateRules(1, rule, 8)).rejects.toBeInstanceOf(ForbiddenException);
-    await service.updateRules(1, rule, 7);
+    await expect(service.updateRules(1, rule, as(8))).rejects.toBeInstanceOf(ForbiddenException);
+    await service.updateRules(1, rule, as(7));
     expect(prisma.rule.upsert).toHaveBeenCalledTimes(1);
   });
 });
@@ -59,7 +64,7 @@ describe('CategoriesService.update (PATCH /categories/{id})', () => {
       { id: 1, name: 'Sub-17' },
       { id: 2, name: 'Sub-15' },
     ]);
-    const c = await service.update(1, { name: 'Juvenil' }, 7);
+    const c = await service.update(1, { name: 'Juvenil' }, ADMIN);
     expect(prisma.category.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { name: 'Juvenil' } });
     expect(c.ageRangeChanged).toBe(false);
   });
@@ -69,20 +74,20 @@ describe('CategoriesService.update (PATCH /categories/{id})', () => {
       { id: 1, name: 'Sub-17' },
       { id: 2, name: 'Sub-15' },
     ]);
-    await expect(service.update(1, { name: 'SUB-15' }, 7)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.update(1, { name: 'SUB-15' }, ADMIN)).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.category.update).not.toHaveBeenCalled();
   });
 
   it('valida el rango nuevo y marca ageRangeChanged para recalcular la elegibilidad', async () => {
     const { service } = build();
-    await expect(service.update(1, { ageRange: '18-15' }, 7)).rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.update(1, { ageRange: '1-4' }, 7)).rejects.toBeInstanceOf(BadRequestException);
-    expect((await service.update(1, { ageRange: '15-18' }, 7)).ageRangeChanged).toBe(true);
-    expect((await service.update(1, { ageRange: '15-17' }, 7)).ageRangeChanged).toBe(false);
+    await expect(service.update(1, { ageRange: '18-15' }, ADMIN)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.update(1, { ageRange: '1-4' }, ADMIN)).rejects.toBeInstanceOf(BadRequestException);
+    expect((await service.update(1, { ageRange: '15-18' }, ADMIN)).ageRangeChanged).toBe(true);
+    expect((await service.update(1, { ageRange: '15-17' }, ADMIN)).ageRangeChanged).toBe(false);
   });
 
   it('solo el organizador de la liga puede editar sus categorias (403)', async () => {
     const { service } = build({ ...sub17, league: { id: 4, ownerId: 7 } });
-    await expect(service.update(1, { name: 'Otra' }, 8)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.update(1, { name: 'Otra' }, as(8))).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

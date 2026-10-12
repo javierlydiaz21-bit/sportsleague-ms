@@ -6,7 +6,7 @@ const organizer = { sub: 1, email: 'admin@sportsleague.co', name: 'Organizador',
 
 function build() {
   const auth: any = { verify: jest.fn().mockResolvedValue(organizer) };
-  const access: any = { authorize: jest.fn().mockResolvedValue(undefined) };
+  const access: any = { authorize: jest.fn().mockResolvedValue(undefined), afterResponse: jest.fn() };
   const idempotency = new IdempotencyService({ isConnected: () => false } as any);
   return new ProxyController(auth, access, idempotency);
 }

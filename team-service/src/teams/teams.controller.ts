@@ -103,6 +103,15 @@ export class CategoryEligibilityController {
 export class PlayersController {
   constructor(private readonly teamsService: TeamsService) {}
 
+  // GET /api/v1/players/{id} — consulta interna: equipo y categoria del jugador (para autorizar por liga)
+  @Get(':id')
+  @ApiOperation({ summary: 'Equipo y categoria de un jugador (uso interno del API Gateway)' })
+  @ApiParam({ name: 'id', example: 1 })
+  @ApiResponse({ status: 404, description: 'El jugador no existe.' })
+  findPlayer(@Param('id', ParseIntPipe) id: number) {
+    return this.teamsService.findPlayer(id);
+  }
+
   // PUT /api/v1/players/{id}/eligibility
   @Put(':id/eligibility')
   @ApiOperation({

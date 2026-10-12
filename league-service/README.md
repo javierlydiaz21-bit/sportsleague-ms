@@ -38,6 +38,16 @@ Además, como en todos los servicios: `GET /api/v1/health` y
 
 - `GET /api/v1/leagues/mine`: "Mis ligas", las ligas del organizador que envía el
   API Gateway en `x-user-id`.
+- Propietario: crear temporadas y categorías, cambiar el reglamento y corregir datos solo
+  lo puede el organizador que creó la liga (403 para otro organizador). Una liga sin
+  propietario (las anteriores a esta columna) solo la modifica el administrador de la
+  plataforma, que el gateway marca con `x-user-admin: true`.
+- `PUT /api/v1/leagues/{id}/owner` `{ "ownerId": 7 }`: el administrador asigna el
+  propietario de una liga que no lo tiene; no reasigna una liga que ya tiene (409).
+- `GET /api/v1/ownership/leagues|seasons|categories/{id}` y
+  `GET /api/v1/ownership/categories?ids=1,2`: liga y propietario de un recurso, para que
+  el gateway autorice las escrituras de los demás servicios. Uso interno: no tiene ruta
+  pública en el gateway.
 - Corrección de datos (adición; nada se borra), solo por el organizador que creó la liga
   (403 para otro organizador):
   - `PATCH /api/v1/leagues/{id}`: nombre y deporte. El deporte solo cambia mientras

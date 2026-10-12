@@ -5,6 +5,7 @@ import { LeaguesModule } from './leagues/leagues.module';
 import { SeasonsModule } from './seasons/seasons.module';
 import { CategoriesModule } from './categories/categories.module';
 import { HealthModule } from './health/health.module';
+import { OwnershipModule } from './ownership/ownership.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { HealthModule } from './health/health.module';
     SeasonsModule,
     CategoriesModule,
     HealthModule,
+    OwnershipModule,
   ],
 })
 export class AppModule {}

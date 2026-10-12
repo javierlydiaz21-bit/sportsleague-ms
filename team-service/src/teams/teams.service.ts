@@ -154,6 +154,15 @@ export class TeamsService {
     });
   }
 
+  /** GET /players/{id} — jugador con la categoria de su equipo (el API Gateway lo usa para autorizar por liga). */
+  async findPlayer(playerId: number) {
+    const player = await this.prisma.player.findUnique({ where: { id: playerId }, include: { team: true } });
+    if (!player) {
+      throw new NotFoundException(`No se encontro el jugador con id ${playerId}`);
+    }
+    return { id: player.id, teamId: player.teamId, categoryId: player.team.categoryId };
+  }
+
   /**
    * PUT /players/{id}/eligibility — vuelve a verificar la elegibilidad del
    * jugador contra el age_range vigente de su categoria (por ejemplo, si

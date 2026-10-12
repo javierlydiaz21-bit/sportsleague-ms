@@ -76,3 +76,13 @@ describe('AssignmentsService.confirm', () => {
     await expect(service.confirm(99)).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+describe('AssignmentsService.findOne (consulta interna del API Gateway)', () => {
+  it('devuelve la asignacion con su partido, o 404 si no existe', async () => {
+    const { service, prisma } = build([]);
+    prisma.refereeAssignment.findUnique.mockResolvedValue({ id: 4, matchId: 10, refereeId: 2, confirmed: false });
+    await expect(service.findOne(4)).resolves.toMatchObject({ id: 4, matchId: 10 });
+    prisma.refereeAssignment.findUnique.mockResolvedValue(null);
+    await expect(service.findOne(99)).rejects.toBeInstanceOf(NotFoundException);
+  });
+});

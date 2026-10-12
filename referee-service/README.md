@@ -33,7 +33,9 @@ declara estar disponible, por ejemplo `{sabado,domingo}`.
 | PUT  | `/api/v1/assignments/{id}/confirm` |
 
 Lecturas de apoyo: `GET /api/v1/referees` (panel de organizadores) y
-`GET /api/v1/referees/{id}`.
+`GET /api/v1/referees/{id}`. `GET /api/v1/assignments/{id}` es de uso interno: con el
+partido de la asignación, el API Gateway verifica que quien la confirma sea el árbitro o el
+organizador propietario de la liga (no tiene ruta pública en el gateway).
 
 Más `GET /api/v1/health`, `GET /api/v1/status` y la documentación en `/docs`.
 

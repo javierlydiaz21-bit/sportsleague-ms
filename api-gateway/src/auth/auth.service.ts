@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   OnModuleInit,
@@ -11,6 +12,8 @@ import { JwtService } from '@nestjs/jwt';
 import { Role, User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
+import { isPlatformAdmin } from '../config/admin';
+import { OwnershipService } from '../ownership/ownership.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, LoginDto, RegisterDto } from './dto/auth.dto';
 
@@ -46,6 +49,7 @@ export class AuthService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly ownership: OwnershipService,
   ) {
     this.refreshDays = Number(this.config.get('REFRESH_TOKEN_DAYS', 7));
   }
@@ -80,10 +84,21 @@ export class AuthService implements OnModuleInit {
     return this.issueTokens(user);
   }
 
-  // POST /auth/users: el organizador crea cuentas (por ejemplo, la de un arbitro)
-  async createUser(dto: CreateUserDto) {
-    if (dto.role === Role.arbitro && !dto.refereeId) {
-      throw new BadRequestException('Una cuenta de arbitro necesita refereeId (su id en el Referee Service)');
+  /**
+   * POST /auth/users: el organizador crea cuentas (por ejemplo, la de un arbitro de sus ligas).
+   * Solo el administrador de la plataforma crea cuentas de organizador, y la cuenta de un arbitro
+   * solo la crea el propietario de las ligas en las que ese arbitro esta certificado.
+   */
+  async createUser(dto: CreateUserDto, requester: AuthUser) {
+    if (dto.role === Role.organizador && !isPlatformAdmin(requester)) {
+      throw new ForbiddenException('Solo el administrador de la plataforma crea cuentas de organizador');
+    }
+    if (dto.role === Role.arbitro) {
+      if (!dto.refereeId) {
+        throw new BadRequestException('Una cuenta de arbitro necesita refereeId (su id en el Referee Service)');
+      }
+      const categories = await this.ownership.refereeCategories(dto.refereeId);
+      this.ownership.assertOwnerOfAll(await this.ownership.categories(categories), requester);
     }
     return publicUser(await this.createAccount(dto));
   }
@@ -150,8 +165,12 @@ export class AuthService implements OnModuleInit {
     return publicUser(user);
   }
 
-  async listUsers() {
-    const users = await this.prisma.user.findMany({ orderBy: { id: 'asc' } });
+  /** GET /auth/users: el administrador ve todas las cuentas; los demas organizadores, solo las de arbitros. */
+  async listUsers(requester: AuthUser) {
+    const users = await this.prisma.user.findMany({
+      ...(isPlatformAdmin(requester) ? {} : { where: { role: Role.arbitro } }),
+      orderBy: { id: 'asc' },
+    });
     return users.map(publicUser);
   }
 

@@ -43,6 +43,15 @@ export class AssignmentsService {
     return { assignment, created: true, day };
   }
 
+  // GET /assignments/{id}: partido de una asignacion, para que el gateway verifique el propietario de la liga
+  async findOne(id: number) {
+    const assignment = await this.prisma.refereeAssignment.findUnique({ where: { id } });
+    if (!assignment) {
+      throw new NotFoundException(`No se encontro la asignacion con id ${id}`);
+    }
+    return assignment;
+  }
+
   // PUT /assignments/{id}/confirm
   async confirm(id: number) {
     const assignment = await this.prisma.refereeAssignment.findUnique({ where: { id } });

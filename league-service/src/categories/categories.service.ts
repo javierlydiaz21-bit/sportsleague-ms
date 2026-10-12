@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ageRangeError, normalizeName } from '../common/catalog';
-import { assertCanEdit } from '../common/ownership';
+import { Actor, assertCanEdit } from '../common/ownership';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateRulesDto } from './dto/update-rules.dto';
@@ -42,9 +42,9 @@ export class CategoriesService {
    * liga. Si cambia el rango, la elegibilidad de los jugadores se recalcula en el Team Service
    * (la web muestra antes el impacto con GET /categories/{id}/eligibility-preview).
    */
-  async update(id: number, dto: UpdateCategoryDto, userId: number | null) {
+  async update(id: number, dto: UpdateCategoryDto, actor: Actor) {
     const category = await this.withLeague(id);
-    assertCanEdit(category.league, userId);
+    assertCanEdit(category.league, actor);
 
     if (dto.name !== undefined && normalizeName(dto.name) !== normalizeName(category.name)) {
       const siblings = await this.prisma.category.findMany({ where: { leagueId: category.leagueId }, select: { id: true, name: true } });
@@ -66,12 +66,12 @@ export class CategoriesService {
   }
 
   /** Crea o reemplaza el reglamento (un solo reglamento vigente por categoria). */
-  async updateRules(categoryId: number, dto: UpdateRulesDto, userId: number | null = null) {
+  async updateRules(categoryId: number, dto: UpdateRulesDto, actor: Actor) {
     if (dto.pointsDraw > dto.pointsWin) {
       throw new BadRequestException('pointsDraw no puede ser mayor que pointsWin');
     }
     const category = await this.withLeague(categoryId);
-    assertCanEdit(category.league, userId);
+    assertCanEdit(category.league, actor);
     return this.prisma.rule.upsert({
       where: { categoryId },
       create: { categoryId, ...dto },

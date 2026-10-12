@@ -58,8 +58,8 @@ export class AuthController {
   @Roles(Role.organizador)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear una cuenta (organizador): por ejemplo, la de un arbitro' })
-  createUser(@Body() dto: CreateUserDto) {
-    return this.authService.createUser(dto);
+  createUser(@Body() dto: CreateUserDto, @Req() req: { user: AuthUser }) {
+    return this.authService.createUser(dto, req.user);
   }
 
   // GET /api/v1/auth/users
@@ -68,7 +68,7 @@ export class AuthController {
   @Roles(Role.organizador)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Listar las cuentas (organizador)' })
-  listUsers() {
-    return this.authService.listUsers();
+  listUsers(@Req() req: { user: AuthUser }) {
+    return this.authService.listUsers(req.user);
   }
 }

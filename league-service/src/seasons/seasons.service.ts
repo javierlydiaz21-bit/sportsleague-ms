@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { FixtureClientService } from '../clients/fixture-client.service';
 import { ageRangeError, dayOf, normalizeName, seasonError } from '../common/catalog';
-import { assertCanEdit } from '../common/ownership';
+import { Actor, assertCanEdit } from '../common/ownership';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateSeasonDto } from './dto/update-season.dto';
@@ -18,11 +18,12 @@ export class SeasonsService {
    * guarda league_id (documento, 3.2), asi que se toma la liga a la que
    * pertenece la temporada indicada en la ruta.
    */
-  async createCategory(seasonId: number, dto: CreateCategoryDto) {
-    const season = await this.prisma.season.findUnique({ where: { id: seasonId } });
+  async createCategory(seasonId: number, dto: CreateCategoryDto, actor: Actor) {
+    const season = await this.prisma.season.findUnique({ where: { id: seasonId }, include: { league: true } });
     if (!season) {
       throw new NotFoundException(`No se encontro la temporada con id ${seasonId}`);
     }
+    assertCanEdit(season.league, actor);
 
     const rangeError = ageRangeError(dto.ageRange);
     if (rangeError) throw new BadRequestException(rangeError);
@@ -42,12 +43,12 @@ export class SeasonsService {
    * PATCH /seasons/{id}: corrige el año o las fechas. Si la temporada ya tiene calendario,
    * las fechas nuevas deben seguir cubriendo todos sus partidos; si no, responde 409 sin cambiar nada.
    */
-  async update(id: number, dto: UpdateSeasonDto, userId: number | null) {
+  async update(id: number, dto: UpdateSeasonDto, actor: Actor) {
     const season = await this.prisma.season.findUnique({ where: { id }, include: { league: true } });
     if (!season) {
       throw new NotFoundException(`No se encontro la temporada con id ${id}`);
     }
-    assertCanEdit(season.league, userId);
+    assertCanEdit(season.league, actor);
 
     const year = dto.year ?? season.year;
     const startDate = dto.startDate ? new Date(dto.startDate) : season.startDate;

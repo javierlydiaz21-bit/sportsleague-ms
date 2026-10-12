@@ -1,7 +1,7 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { FixtureClientService } from '../clients/fixture-client.service';
 import { normalizeName, seasonError } from '../common/catalog';
-import { assertCanEdit } from '../common/ownership';
+import { Actor, assertCanEdit } from '../common/ownership';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLeagueDto } from './dto/create-league.dto';
 import { CreateSeasonDto } from './dto/create-season.dto';
@@ -65,9 +65,9 @@ export class LeaguesService {
    * PATCH /leagues/{id}: corrige el nombre o el deporte. El deporte solo cambia mientras
    * ninguna temporada tenga calendario (se consulta al Fixture Service).
    */
-  async update(id: number, dto: UpdateLeagueDto, userId: number | null) {
+  async update(id: number, dto: UpdateLeagueDto, actor: Actor) {
     const league = await this.findOne(id);
-    assertCanEdit(league, userId);
+    assertCanEdit(league, actor);
     const data: { name?: string; sport?: string } = {};
 
     if (dto.name !== undefined && dto.name !== league.name) {
@@ -94,11 +94,29 @@ export class LeaguesService {
     return this.findOne(id);
   }
 
-  async createSeason(leagueId: number, dto: CreateSeasonDto) {
+  /**
+   * PUT /leagues/{id}/owner: el administrador de la plataforma asigna el propietario de una
+   * liga que aun no lo tiene. No reasigna ligas que ya tienen propietario (409).
+   * El API Gateway comprueba antes que ownerId sea una cuenta de organizador.
+   */
+  async assignOwner(id: number, ownerId: number, actor: Actor) {
+    if (!actor.admin) {
+      throw new ForbiddenException('Solo el administrador de la plataforma asigna propietarios');
+    }
+    const league = await this.findOne(id);
+    if (league.ownerId !== null) {
+      throw new ConflictException(`La liga ${league.name} ya tiene propietario (usuario ${league.ownerId})`);
+    }
+    await this.prisma.league.update({ where: { id }, data: { ownerId } });
+    return this.findOne(id);
+  }
+
+  async createSeason(leagueId: number, dto: CreateSeasonDto, actor: Actor) {
     const league = await this.prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) {
       throw new NotFoundException(`No se encontro la liga con id ${leagueId}`);
     }
+    assertCanEdit(league, actor);
 
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);

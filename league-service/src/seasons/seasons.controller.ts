@@ -1,6 +1,6 @@
 import { Body, Controller, Headers, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { userIdOf } from '../common/ownership';
+import { actorOf } from '../common/ownership';
 import { SeasonsService } from './seasons.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateSeasonDto } from './dto/update-season.dto';
@@ -17,9 +17,15 @@ export class SeasonsController {
     description: 'Registra la categoria con su rango de edad (age_range), usado por el Team Service para validar la elegibilidad.',
   })
   @ApiParam({ name: 'id', example: 1, description: 'Id de la temporada' })
+  @ApiResponse({ status: 403, description: 'La liga es de otro organizador.' })
   @ApiResponse({ status: 404, description: 'La temporada no existe.' })
-  createCategory(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateCategoryDto) {
-    return this.seasonsService.createCategory(id, dto);
+  createCategory(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateCategoryDto,
+    @Headers('x-user-id') userId?: string,
+    @Headers('x-user-admin') admin?: string,
+  ) {
+    return this.seasonsService.createCategory(id, dto, actorOf(userId, admin));
   }
 
   // PATCH /api/v1/seasons/{id} — corregir año o fechas sin dejar partidos fuera de la temporada
@@ -32,7 +38,12 @@ export class SeasonsController {
   @ApiResponse({ status: 403, description: 'La liga es de otro organizador.' })
   @ApiResponse({ status: 409, description: 'Las fechas nuevas dejarian partidos fuera de la temporada.' })
   @ApiResponse({ status: 503, description: 'No se pudo consultar el calendario en el Fixture Service.' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSeasonDto, @Headers('x-user-id') userId?: string) {
-    return this.seasonsService.update(id, dto, userIdOf(userId));
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSeasonDto,
+    @Headers('x-user-id') userId?: string,
+    @Headers('x-user-admin') admin?: string,
+  ) {
+    return this.seasonsService.update(id, dto, actorOf(userId, admin));
   }
 }

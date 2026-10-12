@@ -153,3 +153,17 @@ describe('Elegibilidad por categoria (corregir el rango de edad)', () => {
     expect(prisma.player.update).not.toHaveBeenCalled();
   });
 });
+
+describe('TeamsService.findPlayer (consulta interna del gateway)', () => {
+  it('devuelve el equipo y la categoria del jugador', async () => {
+    const { service, prisma } = build(sub17);
+    prisma.player.findUnique.mockResolvedValue({ id: 4, teamId: 1, team: { id: 1, categoryId: 9 } });
+    expect(await service.findPlayer(4)).toEqual({ id: 4, teamId: 1, categoryId: 9 });
+  });
+
+  it('responde 404 si el jugador no existe', async () => {
+    const { service, prisma } = build(sub17);
+    prisma.player.findUnique.mockResolvedValue(null);
+    await expect(service.findPlayer(99)).rejects.toBeInstanceOf(NotFoundException);
+  });
+});

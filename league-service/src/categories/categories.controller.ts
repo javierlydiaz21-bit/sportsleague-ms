@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Headers, Param, ParseIntPipe, Patch, Put } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { userIdOf } from '../common/ownership';
+import { actorOf } from '../common/ownership';
 import { CategoriesService } from './categories.service';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateRulesDto } from './dto/update-rules.dto';
@@ -36,8 +36,13 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Definir o actualizar el reglamento de una categoria' })
   @ApiParam({ name: 'id', example: 1 })
   @ApiResponse({ status: 403, description: 'La liga es de otro organizador.' })
-  updateRules(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateRulesDto, @Headers('x-user-id') userId?: string) {
-    return this.categoriesService.updateRules(id, dto, userIdOf(userId));
+  updateRules(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateRulesDto,
+    @Headers('x-user-id') userId?: string,
+    @Headers('x-user-admin') admin?: string,
+  ) {
+    return this.categoriesService.updateRules(id, dto, actorOf(userId, admin));
   }
 
   // PATCH /api/v1/categories/{id} — corregir nombre o rango de edad
@@ -49,7 +54,12 @@ export class CategoriesController {
   @ApiParam({ name: 'id', example: 1 })
   @ApiResponse({ status: 403, description: 'La liga es de otro organizador.' })
   @ApiResponse({ status: 409, description: 'Ya existe una categoria con ese nombre en la liga.' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto, @Headers('x-user-id') userId?: string) {
-    return this.categoriesService.update(id, dto, userIdOf(userId));
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCategoryDto,
+    @Headers('x-user-id') userId?: string,
+    @Headers('x-user-admin') admin?: string,
+  ) {
+    return this.categoriesService.update(id, dto, actorOf(userId, admin));
   }
 }

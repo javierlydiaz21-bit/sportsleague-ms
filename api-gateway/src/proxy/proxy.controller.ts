@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import { bearerToken } from '../auth/auth.guard';
 import { AuthService, AuthUser } from '../auth/auth.service';
+import { isPlatformAdmin } from '../config/admin';
 import { internalHeaders } from '../config/internal';
 import { SERVICES, serviceUrl } from '../config/services';
 import { IdempotencyService } from '../security/idempotency.service';
@@ -61,6 +62,8 @@ export class ProxyController {
     if (user) {
       headers['x-user-id'] = String(user.sub);
       headers['x-user-role'] = user.role;
+      // Los servicios usan esta marca para las ligas sin propietario (solo el administrador las modifica)
+      if (isPlatformAdmin(user)) headers['x-user-admin'] = 'true';
     }
     let body: string | undefined;
     if (WITH_BODY.includes(req.method)) {
@@ -84,6 +87,7 @@ export class ProxyController {
       // Solo se repite una respuesta definitiva; ante un error del servicio se puede reintentar
       await this.idempotency.finish(idemKey, upstream.status < 500 ? { status: upstream.status, contentType, body: payload.toString('base64') } : null);
     }
+    this.access.afterResponse(matched, upstream.status);
     res.status(upstream.status);
     res.setHeader('x-request-id', requestId);
     if (contentType) res.setHeader('content-type', contentType);
